@@ -35,6 +35,7 @@ import {
   SettlementStatus,
 } from '@/lib/demo-data';
 import { formatAddress, formatKRW } from '@/lib/format';
+import { getTrustBundle, TrustBundle, TrustBundleKind } from '@/lib/trust';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
 type Tab = 'landlord' | 'tenant' | 'viewer';
@@ -73,6 +74,7 @@ type SummaryView = {
   situationDescription: string;
   settlementStatus: SettlementStatus;
   scenario: DemoLeaseRecord['scenario'] | 'live';
+  trustBundle: TrustBundle;
 };
 
 const STORAGE_KEY = 'jeonsechain-workspace-v2';
@@ -891,6 +893,7 @@ function buildRegisterSummary(addressItem: AddressRecord): SummaryView {
     situationDescription: '데모가 아니라 실제 등록 흐름으로 전환된 상태입니다. 아래 워크스페이스에서 계약 정보를 입력하면 됩니다.',
     settlementStatus: '정산 없음',
     scenario: 'live',
+    trustBundle: getTrustBundle('register'),
   };
 }
 
@@ -927,6 +930,7 @@ function buildDemoSummary(
     situationDescription: usesSettlementNarrative ? settlementMeta.description : demo.storyDescription,
     settlementStatus,
     scenario: demo.scenario,
+    trustBundle: getTrustBundle(demo.scenario),
   };
 }
 
@@ -979,6 +983,10 @@ function buildLiveSummary({
     situationDescription: situationDescriptionFromState(stateNum),
     settlementStatus: stateNum === 4 ? '최종 정산 완료' : '정산 없음',
     scenario: 'live',
+    trustBundle: getTrustBundle(trustKindFromLiveState(stateNum, liveRemaining), {
+      landlordName: `임대인 ${formatAddress(String(liveInfo[1]))}`,
+      tenantName: `임차인 ${formatAddress(String(liveInfo[0]))}`,
+    }),
   };
 }
 
@@ -1033,6 +1041,17 @@ function situationDescriptionFromState(stateNum: number) {
   if (stateNum === 2 || stateNum === 5) return '위험 상태에서는 토큰 동결과 중재 절차가 우선됩니다.';
   if (stateNum === 3) return '만기 조건을 확인한 뒤 자동 반환이나 제한적 퇴실 정산으로 연결됩니다.';
   return '임차인 반환 또는 최종 정산 반영이 완료되었습니다.';
+}
+
+function trustKindFromLiveState(stateNum: number, remainingDays?: bigint): TrustBundleKind {
+  if (stateNum === 0) return 'register';
+  if (stateNum === 1 && remainingDays !== undefined && remainingDays > BigInt(0) && remainingDays <= BigInt(30)) {
+    return 'extension';
+  }
+  if (stateNum === 1) return 'safe';
+  if (stateNum === 2 || stateNum === 5) return 'risk';
+  if (stateNum === 3) return 'settlement';
+  return 'returned';
 }
 
 function getContextualAction(

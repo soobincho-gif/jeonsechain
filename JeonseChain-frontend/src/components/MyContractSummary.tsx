@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import LifecycleTimeline from '@/components/LifecycleTimeline';
+import TrustProfilePanel from '@/components/TrustProfilePanel';
 import { formatClock } from '@/lib/format';
+import { TrustBundle } from '@/lib/trust';
 import { ActivityItem } from '@/lib/workflow';
 
 export type SummaryTone = 'safe' | 'monitor' | 'warning';
-type SummaryTab = 'contract' | 'risk' | 'settlement' | 'activity';
+type SummaryTab = 'contract' | 'risk' | 'trust' | 'settlement' | 'activity';
 
 type MyContractSummaryProps = {
   title: string;
@@ -26,6 +28,7 @@ type MyContractSummaryProps = {
   situationTitle: string;
   situationDescription: string;
   settlementStatus: string;
+  trustBundle: TrustBundle;
   detailMode: boolean;
   activities: ActivityItem[];
 };
@@ -48,6 +51,7 @@ export default function MyContractSummary({
   situationTitle,
   situationDescription,
   settlementStatus,
+  trustBundle,
   detailMode,
   activities,
 }: MyContractSummaryProps) {
@@ -99,6 +103,7 @@ export default function MyContractSummary({
         {([
           ['contract', detailMode ? '계약 정보 / Contract' : '계약 정보'],
           ['risk', detailMode ? '위험 감지 / Oracle' : '위험 감지'],
+          ['trust', detailMode ? '신뢰 프로필 / Attestation' : '신뢰 프로필'],
           ['settlement', detailMode ? '퇴실 정산 / Settlement' : '퇴실 정산'],
           ['activity', detailMode ? '활동 로그 / Event Log' : '활동 로그'],
         ] as [SummaryTab, string][]).map(([key, label]) => (
@@ -179,6 +184,10 @@ export default function MyContractSummary({
               helper="위험 상태에 따라 자동 반환, 중재, 보류 같은 경로가 달라집니다."
             />
           </div>
+        ) : null}
+
+        {tab === 'trust' ? (
+          <TrustProfilePanel bundle={trustBundle} detailMode={detailMode} />
         ) : null}
 
         {tab === 'settlement' ? (
