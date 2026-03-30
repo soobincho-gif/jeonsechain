@@ -98,6 +98,17 @@ async function buildResponsePayload() {
   const statusPath = getStatusFilePath();
   const reportDir = getReportDirectory();
   const liveSnapshot = readJsonFile<OracleSnapshot>(statusPath);
+  const preferRemoteFirst = Boolean(process.env.VERCEL);
+
+  if (preferRemoteFirst) {
+    const remoteSnapshot = await fetchRemoteSnapshot();
+    if (remoteSnapshot) {
+      return {
+        ...remoteSnapshot,
+        fallback: false,
+      } satisfies OracleSnapshot;
+    }
+  }
 
   if (!liveSnapshot) {
     const remoteSnapshot = await fetchRemoteSnapshot();
