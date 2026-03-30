@@ -3,14 +3,16 @@ export const NETWORK_LABEL = 'Sepolia';
 export const CHAIN_ID = 11155111;
 
 export const DEPLOYMENT_META = {
-  deployedAt: '2026-03-30T09:07:15.198Z',
+  deployedAt: '2026-03-30T11:39:25.700Z',
   deployer: '0x7111C45861f8F96833CddB3c32F069cB0416060B',
 } as const;
 
+// 현재 체크인된 Sepolia 배포 주소 (deployments/sepolia.json 기준).
 export const CONTRACT_ADDRESSES = {
-  MockKRW: '0x0D2706dcaAA13CbC2020a38567Ba71EFE69db800',
-  JeonseOracle: '0x4E5EdBbd191B66B6e6ccd19B03efeC1684C5CFaF',
-  JeonseVault: '0xbeB80EE3E3e770C322C40137AbeFc89452367B90',
+  MockKRW:      '0x74Fb8bAd2ACB4D0e7170861C6268A70e88F92ab7',
+  JeonseOracle: '0x3005dBF4668a4E7680215F8aAB00F69C2E8EFC79',
+  JeonseVault:  '0xe8173cA15259A26d7dAB069CDa2002E142e36225',
+  HugMultisig:  '0xd39081E16054160A42bD8C4Bb39daA9a99560fC9',
 } as const;
 
 export const VAULT_ABI = [
@@ -204,6 +206,55 @@ export const VAULT_ABI = [
     "name": "getSettlementCategoryCap",
     "outputs": [{ "name": "", "type": "uint256" }],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  // ── 모의 수익 (Mock Yield) ──────────────────────────────────────────
+  {
+    "inputs": [{ "name": "leaseId", "type": "bytes32" }],
+    "name": "getMockYield",
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "leaseId", "type": "bytes32" }],
+    "name": "getProtectedAssets",
+    "outputs": [
+      { "name": "principal", "type": "uint256" },
+      { "name": "mockYield", "type": "uint256" },
+      { "name": "total",     "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  // ── 일시 정지 ────────────────────────────────────────────────────
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [{ "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  // ── HUG 긴급 반환 ─────────────────────────────────────────────────
+  {
+    "inputs": [{ "name": "leaseId", "type": "bytes32" }],
+    "name": "emergencyReturn",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   // leases (public mapping)
@@ -432,3 +483,188 @@ export const LEASE_CHANGE_TYPE: Record<number, string> = {
   1: '중도 해지 제안',
   2: '계약 연장 제안',
 };
+
+// ── HugMultisig ABI ────────────────────────────────────────────────
+export const MULTISIG_ABI = [
+  {
+    "inputs": [
+      { "name": "target",      "type": "address" },
+      { "name": "data",        "type": "bytes"   },
+      { "name": "description", "type": "string"  }
+    ],
+    "name": "propose",
+    "outputs": [{ "name": "txId", "type": "uint256" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "txId", "type": "uint256" }],
+    "name": "confirm",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "txId", "type": "uint256" }],
+    "name": "revoke",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "txId", "type": "uint256" }],
+    "name": "execute",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "txId", "type": "uint256" }],
+    "name": "canExecute",
+    "outputs": [{ "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "txId", "type": "uint256" }],
+    "name": "getTransaction",
+    "outputs": [
+      { "name": "target",        "type": "address" },
+      { "name": "description",   "type": "string"  },
+      { "name": "proposedAt",    "type": "uint256" },
+      { "name": "executed",      "type": "bool"    },
+      { "name": "confirmCount",  "type": "uint256" },
+      { "name": "timelockPassed","type": "bool"    }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getOwners",
+    "outputs": [{ "name": "", "type": "address[]" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "required",
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "timelockDelay",
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getTransactionCount",
+    "outputs": [{ "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "txId",    "type": "uint256" },
+      { "name": "owner",   "type": "address" }
+    ],
+    "name": "confirmations",
+    "outputs": [{ "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true,  "name": "txId",        "type": "uint256" },
+      { "indexed": true,  "name": "proposer",    "type": "address" },
+      { "indexed": true,  "name": "target",      "type": "address" },
+      { "indexed": false, "name": "description", "type": "string"  }
+    ],
+    "name": "TransactionProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "txId",      "type": "uint256" },
+      { "indexed": true, "name": "confirmer", "type": "address" }
+    ],
+    "name": "TransactionConfirmed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "name": "txId",     "type": "uint256" },
+      { "indexed": true, "name": "executor", "type": "address" }
+    ],
+    "name": "TransactionExecuted",
+    "type": "event"
+  }
+] as const;
+
+// ── Oracle ABI (위험 점수 추가) ────────────────────────────────────
+export const ORACLE_ABI = [
+  {
+    "inputs": [{ "name": "propertyId", "type": "bytes32" }],
+    "name": "isPropertyDangerous",
+    "outputs": [{ "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "", "type": "bytes32" }],
+    "name": "properties",
+    "outputs": [
+      { "name": "officialPrice",    "type": "uint256" },
+      { "name": "seniorDebtTotal",  "type": "uint256" },
+      { "name": "auctionStarted",   "type": "bool"    },
+      { "name": "newMortgageSet",   "type": "bool"    },
+      { "name": "updatedAt",        "type": "uint256" },
+      { "name": "circuitBreakerOn", "type": "bool"    },
+      { "name": "riskScore",        "type": "uint256" },
+      { "name": "dataSourceHash",   "type": "bytes32" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "propertyId",    "type": "bytes32" },
+      { "name": "riskScore",     "type": "uint256" },
+      { "name": "dataSourceHash","type": "bytes32" }
+    ],
+    "name": "updateRiskScore",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "propertyId",    "type": "bytes32" },
+      { "name": "officialPrice", "type": "uint256" },
+      { "name": "seniorDebtTotal","type": "uint256"},
+      { "name": "auctionStarted","type": "bool"    },
+      { "name": "newMortgageSet","type": "bool"    }
+    ],
+    "name": "updatePropertyData",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true,  "name": "propertyId",    "type": "bytes32" },
+      { "indexed": false, "name": "riskScore",     "type": "uint256" },
+      { "indexed": false, "name": "dataSourceHash","type": "bytes32" }
+    ],
+    "name": "RiskScoreUpdated",
+    "type": "event"
+  }
+] as const;

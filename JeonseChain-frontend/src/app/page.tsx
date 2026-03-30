@@ -12,6 +12,7 @@ import LeaseViewer from '@/components/LeaseViewer';
 import LiveMonitor from '@/components/LiveMonitor';
 import MyContractSummary, { SummaryTone } from '@/components/MyContractSummary';
 import NotificationCenter from '@/components/NotificationCenter';
+import OracleTrustPanel from '@/components/OracleTrustPanel';
 import SettlementPreview from '@/components/SettlementPreview';
 import TenantPanel from '@/components/TenantPanel';
 import ToastStack from '@/components/ToastStack';
@@ -511,6 +512,13 @@ export default function Home() {
             activities={activities}
           />
         </section>
+
+        <div className="mt-6">
+          <OracleTrustPanel
+            detailMode={detailMode}
+            autoRefreshEnabled={autoRefreshEnabled}
+          />
+        </div>
 
         <div
           ref={guidedDemoRef}

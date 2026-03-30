@@ -65,12 +65,41 @@ async function main() {
   const vaultAddr = await vault.getAddress();
   console.log("  ✓ JeonseVault:", vaultAddr);
 
-  // ── 오라클 + 볼트에 ORACLE_ROLE 부여 ──────────────────────────────
+  // ── 4. HugMultisig ────────────────────────────────────────────────
+  // 데모: deployer 단독 1-of-1. 프로덕션에서는 addOwner()로 실제 서명자 추가 후
+  // changeRequired(2) 또는 changeRequired(3)으로 quorum을 높여야 한다.
+  console.log("4/4 HugMultisig 배포 중...");
+  const HugMultisig = await ethers.getContractFactory("HugMultisig");
+  const multisig = await HugMultisig.deploy(
+    [deployer.address],   // 서명자 목록 (데모: deployer만)
+    1,                    // required (데모: 1-of-1; 프로덕션: 2-of-3)
+    0,                    // timelockDelay (데모: 즉시; 프로덕션: 172800 = 48h)
+    { gasLimit: 2_000_000n }
+  );
+  const multisigTx = multisig.deploymentTransaction();
+  if (multisigTx) { await multisigTx.wait(); }
+  const multisigAddr = await multisig.getAddress();
+  console.log("  ✓ HugMultisig:", multisigAddr);
+  console.log("  ⚠ 데모 모드: 1-of-1, timelock 0초");
+  console.log("  → 프로덕션 전 addOwner() + changeRequired(2) + changeTimelockDelay(172800) 실행 필요");
+
+  // ── 역할 설정 ──────────────────────────────────────────────────────
   console.log("\n역할 설정 중...");
+
+  // ORACLE_ROLE: deployer가 oracle-fetcher 실행 가능
   const ORACLE_ROLE = await vault.ORACLE_ROLE();
   await (await vault.grantRole(ORACLE_ROLE, deployer.address)).wait();
   await (await oracle.addOracleNode(deployer.address)).wait();
-  console.log("  ✓ ORACLE_ROLE 부여 완료");
+  console.log("  ✓ ORACLE_ROLE → deployer");
+
+  // HUG_ROLE: multisig에게 부여 (민감 함수 보호)
+  const HUG_ROLE = await vault.HUG_ROLE();
+  await (await vault.grantRole(HUG_ROLE, multisigAddr)).wait();
+  console.log("  ✓ HUG_ROLE → HugMultisig");
+
+  // DEFAULT_ADMIN_ROLE도 multisig에게 부여하고 deployer는 추후 제거 권장
+  console.log("  ℹ  deployer도 HUG_ROLE 보유 중 (데모 편의용)");
+  console.log("     프로덕션 전 vault.revokeRole(HUG_ROLE, deployer) 실행 권장");
 
   // ── 테스트 토큰 민팅 (임차인 테스트용) ────────────────────────────
   const testMintAmount = ethers.parseEther("1000000000"); // 10억 KRW
@@ -87,6 +116,7 @@ async function main() {
       MockKRW:      krwAddr,
       JeonseOracle: oracleAddr,
       JeonseVault:  vaultAddr,
+      HugMultisig:  multisigAddr,
     }
   };
 
@@ -107,15 +137,21 @@ async function main() {
     fs.readFileSync("./artifacts/contracts/JeonseFactory.sol/MockKRW.json", "utf8")
   );
 
-  fs.writeFileSync("./deployments/JeonseVault.abi.json", JSON.stringify(vaultArtifact.abi, null, 2));
-  fs.writeFileSync("./deployments/JeonseOracle.abi.json", JSON.stringify(oracleArtifact.abi, null, 2));
-  fs.writeFileSync("./deployments/MockKRW.abi.json", JSON.stringify(krwArtifact.abi, null, 2));
+  const multisigArtifact = JSON.parse(
+    fs.readFileSync("./artifacts/contracts/HugMultisig.sol/HugMultisig.json", "utf8")
+  );
+
+  fs.writeFileSync("./deployments/JeonseVault.abi.json",  JSON.stringify(vaultArtifact.abi,    null, 2));
+  fs.writeFileSync("./deployments/JeonseOracle.abi.json", JSON.stringify(oracleArtifact.abi,   null, 2));
+  fs.writeFileSync("./deployments/MockKRW.abi.json",      JSON.stringify(krwArtifact.abi,      null, 2));
+  fs.writeFileSync("./deployments/HugMultisig.abi.json",  JSON.stringify(multisigArtifact.abi, null, 2));
 
   console.log("\n✅ 배포 완료!");
   console.log("─────────────────────────────────────────");
   console.log("MockKRW:     ", krwAddr);
   console.log("JeonseOracle:", oracleAddr);
   console.log("JeonseVault: ", vaultAddr);
+  console.log("HugMultisig: ", multisigAddr);
   console.log("─────────────────────────────────────────");
   console.log("배포 정보 저장:", "./deployments/sepolia.json");
   console.log("\nSepolia Etherscan:");

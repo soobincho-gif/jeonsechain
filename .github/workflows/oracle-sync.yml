@@ -1,0 +1,57 @@
+name: Oracle Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      address:
+        description: "오라클 집계 대상 도로명주소"
+        required: true
+        default: "서울특별시 마포구 월드컵북로 396"
+      beopjeong_code:
+        description: "5자리 법정동 코드"
+        required: true
+        default: "11440"
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_ADDRESS: ${{ github.event.inputs.address || '서울특별시 마포구 월드컵북로 396' }}
+      TARGET_BEOPJEONG_CODE: ${{ github.event.inputs.beopjeong_code || '11440' }}
+      PRIVATE_KEY: ${{ secrets.SEPOLIA_PRIVATE_KEY }}
+      SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+      DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+      BOK_ECOS_API_KEY: ${{ secrets.BOK_ECOS_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_REPO_OWNER: soobincho-gif
+      GITHUB_REPO_NAME: jeonsechain
+      GITHUB_REPO_BRANCH: main
+      GITHUB_REPO_SNAPSHOT_PATH: oracle-live/latest.json
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: JeonseChain/package-lock.json
+
+      - name: Install contract workspace dependencies
+        working-directory: JeonseChain
+        run: npm ci
+
+      - name: Run oracle sync
+        working-directory: JeonseChain
+        run: >
+          node scripts/oracle-fetcher.js
+          --address "${TARGET_ADDRESS}"
+          --beopjeong-code "${TARGET_BEOPJEONG_CODE}"
+          --save-report

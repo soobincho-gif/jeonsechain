@@ -1,0 +1,21 @@
+{
+  "properties": [
+    {
+      "address": "서울특별시 마포구 월드컵북로 396",
+      "beopjeongCode": "11440",
+      "monthsBack": 2,
+      "seniorDebtKRW": 120000000,
+      "auctionStarted": false,
+      "newMortgageSet": false
+    },
+    {
+      "address": "서울특별시 용산구 한강대로 95",
+      "beopjeongCode": "11170",
+      "monthsBack": 2,
+      "seniorDebtKRW": 0,
+      "auctionStarted": false,
+      "newMortgageSet": true,
+      "useMock": true
+    }
+  ]
+}

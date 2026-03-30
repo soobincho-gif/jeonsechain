@@ -189,6 +189,7 @@ export default function LiveMonitor({
           <AddressRow label="MockKRW" value={CONTRACT_ADDRESSES.MockKRW} />
           <AddressRow label="Oracle" value={CONTRACT_ADDRESSES.JeonseOracle} />
           <AddressRow label="Vault" value={CONTRACT_ADDRESSES.JeonseVault} />
+          <AddressRow label="HUG 멀티시그" value={CONTRACT_ADDRESSES.HugMultisig} />
           <AddressRow label="배포 지갑" value={DEPLOYMENT_META.deployer} />
           <p className="text-xs text-slate-400">
             배포 시각: {new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(DEPLOYMENT_META.deployedAt))}

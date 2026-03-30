@@ -26,6 +26,9 @@ contract JeonseOracle is AccessControl {
         bool    newMortgageSet;     // 근저당 신규 설정 여부
         uint256 updatedAt;          // 마지막 업데이트 블록타임스탬프
         bool    circuitBreakerOn;   // 이상치 탐지로 인한 일시 동결
+        // ── 공공데이터 파이프라인 필드 ───────────────────────────────
+        uint256 riskScore;          // 0-100 종합 위험 점수 (oracle-fetcher 계산)
+        bytes32 dataSourceHash;     // off-chain 데이터 번들 해시 (감사용)
     }
 
     // ── 이상치 탐지용 이동 통계 (Welford's online algorithm) ─────────
@@ -41,9 +44,11 @@ contract JeonseOracle is AccessControl {
     mapping(bytes32 => OracleStat)   private priceStats;
 
     // Z-score 임계값: 3.0 (scaled 1e6 → 3_000_000)
-    int256  public constant ZSCORE_THRESHOLD = 3_000_000;
+    int256  public constant ZSCORE_THRESHOLD          = 3_000_000;
     // LTV 위험 임계: 80% (선순위채권 / 공시가격)
-    uint256 public constant LTV_DANGER_BPS   = 8000; // basis points
+    uint256 public constant LTV_DANGER_BPS            = 8000;
+    // 위험 점수 임계: 70점 이상 → HUG 개입 요청
+    uint256 public constant RISK_SCORE_DANGER_THRESHOLD = 70;
 
     // ── 이벤트 ───────────────────────────────────────────────────────
     event DataUpdated(bytes32 indexed propertyId, uint256 officialPrice, uint256 seniorDebt);
@@ -53,6 +58,11 @@ contract JeonseOracle is AccessControl {
     event MortgageDetected(bytes32 indexed propertyId);
     event LtvDangerDetected(bytes32 indexed propertyId, uint256 ltvBps);
     event HugInterventionRequested(bytes32 indexed propertyId, string reason);
+    event RiskScoreUpdated(
+        bytes32 indexed propertyId,
+        uint256 riskScore,
+        bytes32 dataSourceHash
+    );
 
     // ── 생성자 ───────────────────────────────────────────────────────
     constructor(address admin, address hugNode) {
@@ -147,6 +157,46 @@ contract JeonseOracle is AccessControl {
     function resetCircuitBreaker(bytes32 propertyId) external onlyRole(HUG_ROLE) {
         properties[propertyId].circuitBreakerOn = false;
         emit CircuitBreakerReset(propertyId);
+    }
+
+    /**
+     * @notice off-chain oracle-fetcher가 계산한 종합 위험 점수를 온체인에 기록.
+     *
+     * 점수 기준 (oracle-fetcher.js 참조):
+     *  - LTV 80% 초과           +40점
+     *  - 경매 개시 감지          +30점
+     *  - 신규 근저당 설정        +20점
+     *  - 전세가율 80% 이상       +10점
+     *  70점 이상 → HUG 개입 요청 이벤트 발행
+     *
+     * @param propertyId     부동산 식별자
+     * @param riskScore      0–100 위험 점수
+     * @param dataSourceHash off-chain 데이터 소스 bundle hash (keccak256)
+     */
+    function updateRiskScore(
+        bytes32 propertyId,
+        uint256 riskScore,
+        bytes32 dataSourceHash
+    ) external onlyRole(ORACLE_ROLE) {
+        require(riskScore <= 100,             "Oracle: score out of range");
+        require(dataSourceHash != bytes32(0), "Oracle: data hash required");
+
+        properties[propertyId].riskScore      = riskScore;
+        properties[propertyId].dataSourceHash = dataSourceHash;
+        properties[propertyId].updatedAt      = block.timestamp;
+
+        emit RiskScoreUpdated(propertyId, riskScore, dataSourceHash);
+
+        if (riskScore >= RISK_SCORE_DANGER_THRESHOLD) {
+            emit HugInterventionRequested(
+                propertyId,
+                "High risk score from oracle fetcher"
+            );
+        }
+    }
+
+    function removeOracleNode(address node) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _revokeRole(ORACLE_ROLE, node);
     }
 
     // ── 조회 헬퍼 ────────────────────────────────────────────────────

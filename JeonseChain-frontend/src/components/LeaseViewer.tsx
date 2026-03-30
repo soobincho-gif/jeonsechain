@@ -95,6 +95,14 @@ export default function LeaseViewer({
     },
   });
 
+  const { data: protectedAssets } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseVault,
+    abi: VAULT_ABI,
+    functionName: 'getProtectedAssets',
+    args: leaseReady ? [queried as `0x${string}`] : undefined,
+    query: { enabled: leaseReady, refetchInterval: 10000 },
+  });
+
   const { data: frozenTokens } = useReadContract({
     address: CONTRACT_ADDRESSES.JeonseVault,
     abi: VAULT_ABI,
@@ -258,8 +266,22 @@ export default function LeaseViewer({
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <InfoBox label="임차인" value={formatFullAddress(String(info[0]))} mono />
                   <InfoBox label="임대인" value={formatFullAddress(String(info[1]))} mono />
-                  <InfoBox label="보증금" value={formatKRW(info[2])} />
-                  <InfoBox label="현재 가치" value={formatKRW(info[3])} />
+                  <InfoBox label="보증금 원금" value={formatKRW(info[2])} />
+                  <InfoBox label="볼트 현재 가치" value={formatKRW(info[3])} />
+                  {protectedAssets && (
+                    <>
+                      <InfoBox
+                        label="모의 누적 수익 (연 3%)"
+                        value={formatKRW(protectedAssets[1])}
+                        highlight
+                      />
+                      <InfoBox
+                        label="총 보호 자산"
+                        value={formatKRW(protectedAssets[2])}
+                        highlight
+                      />
+                    </>
+                  )}
                   <InfoBox
                     label="남은 일수"
                     value={
@@ -389,16 +411,22 @@ function InfoBox({
   value,
   helper,
   mono,
+  highlight,
 }: {
   label: string;
   value: string;
   helper?: string;
   mono?: boolean;
+  highlight?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className={`mt-3 min-w-0 text-sm leading-6 text-white ${mono ? 'font-mono break-words [overflow-wrap:anywhere]' : 'break-words'}`}>{value}</p>
+    <div className={`min-w-0 rounded-2xl border p-4 ${
+      highlight
+        ? 'border-emerald-500/30 bg-emerald-500/5'
+        : 'border-white/10 bg-slate-950/55'
+    }`}>
+      <p className={`text-xs uppercase tracking-[0.18em] ${highlight ? 'text-emerald-400' : 'text-slate-500'}`}>{label}</p>
+      <p className={`mt-3 min-w-0 text-sm leading-6 ${highlight ? 'text-emerald-200 font-semibold' : 'text-white'} ${mono ? 'font-mono break-words [overflow-wrap:anywhere]' : 'break-words'}`}>{value}</p>
       {helper ? <p className="mt-2 break-words text-xs text-slate-400 [overflow-wrap:anywhere]">{helper}</p> : null}
     </div>
   );

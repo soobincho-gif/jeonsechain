@@ -1,0 +1,530 @@
+'use client';
+
+import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { explorerLink, formatAddress } from '@/lib/format';
+import type { OracleSnapshot } from '@/lib/oracle';
+
+type OracleTrustPanelProps = {
+  detailMode: boolean;
+  autoRefreshEnabled: boolean;
+};
+
+export default function OracleTrustPanel({
+  detailMode,
+  autoRefreshEnabled,
+}: OracleTrustPanelProps) {
+  const [snapshot, setSnapshot] = useState<OracleSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  async function fetchSnapshot(signal?: AbortSignal) {
+    try {
+      const response = await fetch('/api/oracle/latest', { cache: 'no-store', signal });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = (await response.json()) as OracleSnapshot;
+      setSnapshot(payload);
+      setError(null);
+    } catch (nextError) {
+      if ((nextError as Error).name === 'AbortError') return;
+      setError((nextError as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    fetchSnapshot(controller.signal);
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!autoRefreshEnabled) return;
+    const timer = window.setInterval(() => {
+      fetchSnapshot();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [autoRefreshEnabled]);
+
+  const summary = snapshot?.latest;
+  const attestationCount = useMemo(() => {
+    if (!summary) return 0;
+    return Object.values(summary.attestation).filter((value) => value === 'MANUAL_OVERRIDE').length;
+  }, [summary]);
+
+  const history = useMemo(
+    () => [...(snapshot?.history ?? [])].sort((a, b) => String(a.fetchedAt).localeCompare(String(b.fetchedAt))),
+    [snapshot?.history],
+  );
+
+  return (
+    <>
+      <section className="glass-card overflow-hidden p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+              {detailMode ? 'Oracle Trust Layer / Explainability' : '오라클 신뢰 근거'}
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+              {detailMode ? '왜 이 Risk Score가 나왔는지 보여주는 패널' : '왜 이런 보호 상태인지 보여주는 패널'}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              {detailMode
+                ? '실거래 집계, 한국은행 benchmark, 수동 attestation, 온체인 반영 기록을 한 곳에서 확인합니다.'
+                : '최근 공공데이터와 금리 데이터를 반영해 점수를 다시 계산했고, 그 결과를 보고서와 온체인 기록으로 검증할 수 있습니다.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => fetchSnapshot()}
+              className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+            >
+              새 근거 불러오기
+            </button>
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              disabled={!snapshot}
+              className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            >
+              자세히 보기
+            </button>
+          </div>
+        </div>
+
+        {loading && !snapshot ? (
+          <PanelSkeleton />
+        ) : error && !snapshot ? (
+          <ErrorState message={error} onRetry={() => fetchSnapshot()} />
+        ) : summary ? (
+          <>
+            <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_340px]">
+              <div className="rounded-[28px] border border-cyan-300/20 bg-cyan-300/10 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {detailMode ? 'Risk Score Explanation' : '왜 이 점수인가요?'}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">
+                      {summary.address || '현재 선택된 주소 없음'}
+                    </p>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass(summary.risk.score)}`}>
+                    {summary.risk.score} / 100 · {riskLabel(summary.risk.score)}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <MetricChip label="전월세 실거래 반영" value={`${summary.metrics.rentSamples.toLocaleString('ko-KR')}건`} helper="최근 집계 표본" />
+                  <MetricChip label="매매 실거래 반영" value={`${summary.metrics.saleSamples.toLocaleString('ko-KR')}건`} helper="최근 집계 표본" />
+                  <MetricChip label="기준금리" value={formatPercent(summary.benchmark?.baseRate?.valuePct)} helper={summary.benchmark?.baseRate?.time || 'ECOS'} />
+                  <MetricChip label="국고채 3Y" value={formatPercent(summary.benchmark?.treasury3y?.valuePct)} helper={summary.benchmark?.treasury3y?.time || 'ECOS'} />
+                  <MetricChip label="수익률 참고치" value={formatPercent(summary.benchmark?.protectedYieldReferencePct)} helper="보호 판단 참고" />
+                  <MetricChip label="수동 검토" value={`${attestationCount}건`} helper="attestation 포함 수" />
+                </div>
+
+                <div className="mt-5 rounded-[22px] border border-white/10 bg-slate-950/40 p-4">
+                  <p className="text-sm font-medium text-white">
+                    {detailMode ? 'Score Reasoning Log' : '주요 판단 근거'}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {summary.risk.log.map((line) => (
+                      <span
+                        key={line}
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-slate-200"
+                      >
+                        {line}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                <PanelCard
+                  title={detailMode ? 'Data Freshness / Sources' : '데이터 출처 및 신선도'}
+                  description="공공데이터, 금리 benchmark, 온체인 반영 시각을 함께 확인합니다."
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <SourceBadge label="국토부 공공데이터" />
+                    <SourceBadge label="한국은행 ECOS" />
+                    <SourceBadge label="수동 attestation" muted={attestationCount === 0} />
+                    <SourceBadge label="온체인 기록 완료" accent />
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    <FreshnessRow
+                      label="마지막 공공데이터 반영"
+                      value={formatDateTime(summary.freshness.marketDataFetchedAt)}
+                      helper={formatRelative(summary.freshness.marketDataFetchedAt)}
+                    />
+                    <FreshnessRow
+                      label="마지막 온체인 반영"
+                      value={formatDateTime(summary.freshness.oracleUpdatedAt)}
+                      helper={formatRelative(summary.freshness.oracleUpdatedAt)}
+                    />
+                    <FreshnessRow
+                      label="워커 상태"
+                      value={snapshot.health.status === 'healthy' ? '정상' : snapshot.health.status}
+                      helper={snapshot.health.watchMode ? 'watch mode 활성' : '수동 실행 기준'}
+                    />
+                  </div>
+                </PanelCard>
+
+                <PanelCard
+                  title={detailMode ? 'Oracle Health / Verifiability' : '검증 가능성'}
+                  description="보고서, bundleHash, tx hash를 통해 검증 가능한 상태를 유지합니다."
+                >
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <MetricChip label="bundleHash" value={formatAddress(summary.bundleHash, 10, 8)} helper="보고서 해시" />
+                    <MetricChip label="propertyId" value={formatAddress(summary.propertyId, 10, 8)} helper="주소 기반 유도값" />
+                  </div>
+                </PanelCard>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <PanelCard
+                title={detailMode ? 'Risk Score Trend' : '리스크 변화 추이'}
+                description={
+                  history.length > 1
+                    ? '최근 리포트 기준 score 변화를 보여줍니다.'
+                    : '최근 변동이 크지 않으면 평평한 추이로 표시됩니다.'
+                }
+              >
+                <RiskTrendChart history={history} />
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {(history.at(-1)?.eventTags ?? ['최근 변동 없음']).map((tag) => (
+                    <span key={tag} className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </PanelCard>
+
+              <PanelCard
+                title={detailMode ? 'Oracle Update Timeline' : '오라클 반영 내역'}
+                description="activity log와 분리된 데이터 반영 타임라인입니다."
+              >
+                <div className="space-y-3">
+                  {summary.timeline.map((item) => (
+                    <div key={`${item.kind}-${item.timestamp}`} className="rounded-[20px] border border-white/10 bg-slate-950/40 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2.5 w-2.5 rounded-full ${toneDot(item.tone)}`} />
+                          <p className="text-sm font-medium text-white">{item.title}</p>
+                        </div>
+                        <span className="text-xs text-slate-500">{formatDateTime(item.timestamp)}</span>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">{item.description}</p>
+                      {item.txHash ? (
+                        <a
+                          href={explorerLink('tx', item.txHash)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex text-xs text-cyan-200 underline-offset-4 hover:underline"
+                        >
+                          트랜잭션 보기
+                        </a>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </PanelCard>
+            </div>
+          </>
+        ) : null}
+      </section>
+
+      {drawerOpen && snapshot ? (
+        <DetailDrawer snapshot={snapshot} onClose={() => setDrawerOpen(false)} />
+      ) : null}
+    </>
+  );
+}
+
+function PanelSkeleton() {
+  return (
+    <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <div
+          key={index}
+          className="h-44 animate-pulse rounded-[24px] border border-white/10 bg-white/[0.04]"
+        />
+      ))}
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="mt-6 rounded-[24px] border border-rose-400/20 bg-rose-400/10 p-5">
+      <p className="text-sm font-semibold text-white">오라클 스냅샷을 불러오지 못했어요</p>
+      <p className="mt-2 text-sm leading-6 text-slate-200">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-4 rounded-full border border-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+      >
+        다시 시도
+      </button>
+    </div>
+  );
+}
+
+function PanelCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-[26px] border border-white/10 bg-slate-950/45 p-5">
+      <p className="text-base font-semibold text-white">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
+      <div className="mt-4">{children}</div>
+    </div>
+  );
+}
+
+function MetricChip({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-[20px] border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-2 break-words text-base font-semibold text-white [overflow-wrap:anywhere]">{value}</p>
+      <p className="mt-1 text-xs text-slate-400">{helper}</p>
+    </div>
+  );
+}
+
+function SourceBadge({ label, accent, muted }: { label: string; accent?: boolean; muted?: boolean }) {
+  return (
+    <span
+      className={`rounded-full border px-3 py-2 text-xs ${
+        accent
+          ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100'
+          : muted
+            ? 'border-white/10 bg-white/[0.03] text-slate-500'
+            : 'border-white/10 bg-white/[0.03] text-slate-200'
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function FreshnessRow({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
+      <div>
+        <p className="text-sm font-medium text-white">{label}</p>
+        <p className="mt-1 text-xs text-slate-500">{helper}</p>
+      </div>
+      <span className="text-sm text-slate-200">{value}</span>
+    </div>
+  );
+}
+
+function RiskTrendChart({
+  history,
+}: {
+  history: OracleSnapshot['history'];
+}) {
+  const points = history.map((point, index) => ({
+    ...point,
+    x: history.length === 1 ? 160 : 20 + (index / Math.max(history.length - 1, 1)) * 300,
+    y: 110 - Math.min(100, point.riskScore),
+  }));
+  const polyline = points.map((point) => `${point.x},${point.y}`).join(' ');
+
+  return (
+    <div className="rounded-[22px] border border-white/10 bg-slate-950/45 p-4">
+      <svg viewBox="0 0 340 130" className="h-36 w-full">
+        <path d="M20 110 H320" stroke="rgba(148,163,184,0.18)" strokeWidth="1" />
+        <path d="M20 20 V110" stroke="rgba(148,163,184,0.12)" strokeWidth="1" />
+        {points.length > 1 ? (
+          <polyline
+            fill="none"
+            stroke="rgb(34 211 238)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            points={polyline}
+          />
+        ) : null}
+        {points.map((point) => (
+          <g key={point.bundleHash}>
+            <circle cx={point.x} cy={point.y} r="4.5" fill="rgb(34 211 238)" />
+            <text x={point.x} y={124} textAnchor="middle" fontSize="10" fill="rgba(226,232,240,0.7)">
+              {formatMiniDate(point.fetchedAt)}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+        <span>이전</span>
+        <span>{history.length > 1 ? '최근 변화 추이' : '최근 변동 없음'}</span>
+        <span>현재</span>
+      </div>
+    </div>
+  );
+}
+
+function DetailDrawer({
+  snapshot,
+  onClose,
+}: {
+  snapshot: OracleSnapshot;
+  onClose: () => void;
+}) {
+  const summary = snapshot.latest;
+
+  return (
+    <div className="fixed inset-0 z-[95] flex justify-end bg-slate-950/72 backdrop-blur-sm">
+      <button type="button" aria-label="닫기" className="flex-1 cursor-default" onClick={onClose} />
+      <aside className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[#08111f] p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Oracle Detail Drawer</p>
+            <h3 className="mt-2 text-2xl font-semibold text-white">검증용 상세 정보</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              일반 화면에서는 쉬운 설명을 보여주고, 이 영역에서는 propertyId, bundleHash, tx, raw report를 확인합니다.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/oracle/latest?view=raw"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+            >
+              보고서 보기
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <MetricChip label="propertyId" value={summary.propertyId} helper="주소 기반 keccak 파생값" />
+          <MetricChip label="bundleHash" value={summary.bundleHash} helper="보고서 전체를 고정하는 해시" />
+          <MetricChip label="updatePropertyData tx" value={formatAddress(summary.onchain?.updatePropertyDataTx ?? undefined, 10, 8)} helper="부동산 데이터 갱신 tx" />
+          <MetricChip label="updateRiskScore tx" value={formatAddress(summary.onchain?.updateRiskScoreTx ?? undefined, 10, 8)} helper="리스크 점수 기록 tx" />
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          {summary.onchain?.updatePropertyDataTx ? (
+            <a
+              href={explorerLink('tx', summary.onchain.updatePropertyDataTx)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-cyan-200 transition hover:border-cyan-300/30"
+            >
+              updatePropertyData 트랜잭션 보기
+            </a>
+          ) : null}
+          {summary.onchain?.updateRiskScoreTx ? (
+            <a
+              href={explorerLink('tx', summary.onchain.updateRiskScoreTx)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-cyan-200 transition hover:border-cyan-300/30"
+            >
+              updateRiskScore 트랜잭션 보기
+            </a>
+          ) : null}
+        </div>
+
+        <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/45 p-5">
+          <p className="text-base font-semibold text-white">보고서 JSON 미리보기</p>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            화면에는 요약만 보여주고, raw report는 아래에서 바로 확인할 수 있습니다.
+          </p>
+          <pre className="mt-4 overflow-x-auto rounded-[20px] border border-white/10 bg-[#020817] p-4 text-xs leading-6 text-slate-200">
+            {JSON.stringify(snapshot.rawReport ?? summary, null, 2)}
+          </pre>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function badgeClass(score: number) {
+  if (score >= 70) return 'border-rose-500/30 bg-rose-500/10 text-rose-100';
+  if (score >= 40) return 'border-amber-500/30 bg-amber-500/10 text-amber-100';
+  return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100';
+}
+
+function toneDot(tone: 'info' | 'success' | 'warning') {
+  if (tone === 'warning') return 'bg-amber-300';
+  if (tone === 'success') return 'bg-emerald-300';
+  return 'bg-cyan-300';
+}
+
+function riskLabel(score: number) {
+  if (score >= 70) return '위험';
+  if (score >= 40) return '주의';
+  return '안전';
+}
+
+function formatPercent(value?: number | null) {
+  if (value == null) return '데이터 없음';
+  return `${value.toFixed(3)}%`;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '기록 없음';
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatMiniDate(value: string) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: 'numeric',
+    day: 'numeric',
+  }).format(new Date(value));
+}
+
+function formatRelative(value?: string | null) {
+  if (!value) return '기록 없음';
+  const diffMs = Date.now() - new Date(value).getTime();
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin <= 1) return '방금 반영';
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.round(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  return `${Math.round(diffHour / 24)}일 전`;
+}

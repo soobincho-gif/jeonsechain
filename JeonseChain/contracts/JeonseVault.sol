@@ -26,7 +26,8 @@ import "./JeonseOracle.sol";
  * ERC-4626은 수익형 볼트의 예치·인출·지분 계산을 표준화하는 인터페이스다.
  * 본 컨트랙트는 이 볼트 개념을 참조하되, 보증금 원금 반환권과 운용수익 청구권을
  * 별도로 설계하는 맞춤형 구조로 확장한다.
- * (Hyperledger Fabric 배포 시에는 동일 로직을 Fabric 체인코드로 재구현)
+ * 향후 공공기관형 permissioned 배포가 필요할 경우 Hyperledger Fabric 같은
+ * 허가형 인프라로의 이식 가능성을 검토한다. (현재 MVP는 EVM 기반)
  */
 contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -112,6 +113,13 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     mapping(address => bool)          public frozenTokens;
     JeonseOracle public immutable oracle;
 
+    // ── 일시 정지 ─────────────────────────────────────────────────────
+    bool public paused;
+
+    // ── 모의 수익 파라미터 ────────────────────────────────────────────
+    // 연 3% 모의 수익률. 실제 국채·MMF 전략 연동 시 이 상수를 교체.
+    uint256 public constant MOCK_ANNUAL_YIELD_BPS = 300;
+
     uint256 public constant MARGIN_CALL_THRESHOLD_BPS = 11000;
     uint256 public constant MAX_SETTLEMENT_HOLD_BPS = 300; // 3%
     uint256 public constant MAX_SETTLEMENT_HOLD_AMOUNT = 3_000_000 ether;
@@ -125,6 +133,9 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     uint256 public constant MIN_EXTENSION_DAYS = 30;
     uint256 public constant MAX_EXTENSION_DAYS = 730;
 
+    event Paused(address indexed by);
+    event Unpaused(address indexed by);
+    event EmergencyReturn(bytes32 indexed leaseId, address indexed tenant, uint256 amount);
     event LeaseRegistered(bytes32 indexed leaseId, address tenant, address landlord, uint256 amount);
     event DepositReceived(bytes32 indexed leaseId, uint256 amount, uint256 sharesIssued);
     event DangerStateActivated(bytes32 indexed leaseId, string reason);
@@ -177,6 +188,11 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         address indexed canceller
     );
 
+    modifier whenNotPaused() {
+        require(!paused, "Vault: paused");
+        _;
+    }
+
     constructor(
         IERC20 _underlyingAsset,
         address _oracle,
@@ -190,6 +206,23 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         _grantRole(HUG_ROLE, _hugAdmin);
     }
 
+    // ── 일시 정지 ─────────────────────────────────────────────────────
+    /**
+     * @notice 비상 상황 시 계약 생성·납입·반환을 일시 정지.
+     *         HUG_ROLE 보유 주소(멀티시그 권장)만 호출 가능.
+     */
+    function pause() external onlyRole(HUG_ROLE) {
+        require(!paused, "Vault: already paused");
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() external onlyRole(HUG_ROLE) {
+        require(paused, "Vault: not paused");
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+
     // ── STEP 1: 계약 등록 ─────────────────────────────────────────────
     /**
      * @notice 임대인이 전세 계약 사전 등록.
@@ -201,7 +234,7 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         uint256 depositAmount,
         uint256 durationDays,
         bytes32 propertyId
-    ) external returns (bytes32 leaseId) {
+    ) external whenNotPaused returns (bytes32 leaseId) {
         require(tenant != address(0),  "Vault: invalid tenant");
         require(depositAmount > 0,     "Vault: deposit must be > 0");
         require(durationDays >= 365,   "Vault: minimum 1 year");
@@ -236,7 +269,7 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
      * @dev 수익권 토큰(JCYT)은 임차인이 아닌 임대인에게 발행됨.
      *      임대인은 이 토큰을 협약 금융기관에 담보로 제출하여 유동성 조달 가능.
      */
-    function depositJeonse(bytes32 leaseId) external nonReentrant {
+    function depositJeonse(bytes32 leaseId) external nonReentrant whenNotPaused {
         LeaseContract storage lease = leases[leaseId];
         require(msg.sender == lease.tenant, "Vault: not tenant");
         require(lease.state == ContractState.REGISTERED, "Vault: invalid state");
@@ -289,7 +322,7 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
      * @notice 만기 후 누구나 호출 가능 → 집행 임의성 최소화.
      * @dev 오라클 위험 상태(경매·LTV 초과)에서는 HUG 중재 우선.
      */
-    function executeReturn(bytes32 leaseId) external nonReentrant {
+    function executeReturn(bytes32 leaseId) external nonReentrant whenNotPaused {
         LeaseContract storage lease = leases[leaseId];
         SettlementRecord storage settlement = settlements[leaseId];
         _clearExpiredLeaseChangeIfNeeded(leaseId);
@@ -323,7 +356,7 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     }
 
     // ── STEP 4A: 퇴실 요청 / 제한적 정산 보류 ───────────────────────
-    function requestMoveOut(bytes32 leaseId) external {
+    function requestMoveOut(bytes32 leaseId) external whenNotPaused {
         LeaseContract storage lease = leases[leaseId];
         SettlementRecord storage settlement = settlements[leaseId];
         _clearExpiredLeaseChangeIfNeeded(leaseId);
@@ -500,7 +533,7 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         SettlementCategory category,
         uint256 claimAmount,
         bytes32 evidenceHash
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         LeaseContract storage lease = leases[leaseId];
         SettlementRecord storage settlement = settlements[leaseId];
         _clearExpiredLeaseChangeIfNeeded(leaseId);
@@ -607,6 +640,22 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     }
 
     // ── HUG 관리자 ───────────────────────────────────────────────────
+
+    /**
+     * @notice 비상 강제 반환. 위험·분쟁 상태 포함 모든 진행 중 계약에 적용.
+     *         단일 EOA가 아닌 HugMultisig 주소가 HUG_ROLE을 보유해야 함.
+     */
+    function emergencyReturn(bytes32 leaseId)
+        external onlyRole(HUG_ROLE) nonReentrant
+    {
+        LeaseContract storage lease = leases[leaseId];
+        require(lease.depositAmount > 0,                "Vault: no deposit");
+        require(lease.state != ContractState.RETURNED,  "Vault: already returned");
+
+        _returnEntireDeposit(leaseId, lease);
+        emit EmergencyReturn(leaseId, lease.tenant, lease.depositAmount);
+    }
+
     function resolveDispute(bytes32 leaseId, bool returnToTenant)
         external onlyRole(HUG_ROLE) nonReentrant
     {
@@ -646,6 +695,34 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
             require(!frozenTokens[from], "Vault: tokens frozen");
         }
         super._update(from, to, value);
+    }
+
+    // ── 모의 수익 조회 ────────────────────────────────────────────────
+
+    /**
+     * @notice 보증금 예치 기간 동안 발생한 모의 수익 계산 (연 3% 기준).
+     * @dev    UI 표시 전용. 실제 토큰으로 뒷받침되지 않음.
+     *         국채·MMF 전략 연동 시 이 함수를 실제 수익 계산으로 교체.
+     */
+    function getMockYield(bytes32 leaseId) public view returns (uint256) {
+        LeaseContract memory lease = leases[leaseId];
+        if (lease.startTime == 0) return 0;
+        uint256 elapsed = block.timestamp - lease.startTime;
+        return (lease.depositAmount * MOCK_ANNUAL_YIELD_BPS * elapsed)
+            / (365 days * 10000);
+    }
+
+    /**
+     * @notice 원금·모의수익·합계를 한 번에 반환. 프론트엔드 대시보드 전용.
+     */
+    function getProtectedAssets(bytes32 leaseId)
+        external view
+        returns (uint256 principal, uint256 mockYield, uint256 total)
+    {
+        LeaseContract memory lease = leases[leaseId];
+        principal = lease.depositAmount;
+        mockYield = getMockYield(leaseId);
+        total     = principal + mockYield;
     }
 
     // ── 조회 ─────────────────────────────────────────────────────────

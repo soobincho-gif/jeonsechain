@@ -7,9 +7,12 @@ JeonseChain/node_modules/
 JeonseChain/artifacts/
 JeonseChain/cache/
 JeonseChain/.keeper-state.json
+JeonseChain/data/oracle-reports/
+JeonseChain/data/oracle-status/
 
 JeonseChain-frontend/node_modules/
 JeonseChain-frontend/.next/
 JeonseChain-frontend/test-results/
+JeonseChain-frontend/tsconfig.tsbuildinfo
 JeonseChain-frontend/public/evidence/
 JeonseChain-frontend/data/evidence/

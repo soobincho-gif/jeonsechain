@@ -6,7 +6,7 @@
 
 - Live demo: https://jeonsechain-frontend.vercel.app
 - GitHub: https://github.com/soobincho-gif/jeonsechain
-- Sepolia Vault: https://sepolia.etherscan.io/address/0xbeB80EE3E3e770C322C40137AbeFc89452367B90
+- Sepolia Vault: https://sepolia.etherscan.io/address/0xe8173cA15259A26d7dAB069CDa2002E142e36225
 
 ## What It Does
 
@@ -46,9 +46,10 @@ JeonseChain-frontend/
 
 Sepolia 최신 배포 주소:
 
-- `MockKRW`: `0x0D2706dcaAA13CbC2020a38567Ba71EFE69db800`
-- `JeonseOracle`: `0x4E5EdBbd191B66B6e6ccd19B03efeC1684C5CFaF`
-- `JeonseVault`: `0xbeB80EE3E3e770C322C40137AbeFc89452367B90`
+- `MockKRW`: `0x74Fb8bAd2ACB4D0e7170861C6268A70e88F92ab7`
+- `JeonseOracle`: `0x3005dBF4668a4E7680215F8aAB00F69C2E8EFC79`
+- `JeonseVault`: `0xe8173cA15259A26d7dAB069CDa2002E142e36225`
+- `HugMultisig`: `0xd39081E16054160A42bD8C4Bb39daA9a99560fC9`
 
 주요 온체인 기능:
 
@@ -63,6 +64,20 @@ Sepolia 최신 배포 주소:
 - `requestLeaseExtension`
 - `requestEarlyTermination`
 - `respondToLeaseChange`
+
+오프체인 오라클 워커:
+
+- `oracle-fetcher.js`
+- 공공데이터 API + 수동 attestation 병합
+- 한국은행 ECOS 기준금리/국고채 3년 benchmark 병합
+- GitHub 공개 snapshot 동기화 지원
+- batch config 지원
+- watch mode 지원
+- bundle hash / report JSON 생성
+
+현재 공개 Sepolia 오라클은 `updatePropertyData()`와 `updateRiskScore()`를 모두 지원하는 최신 배포본 기준입니다.
+
+오라클 자동 동기화는 루트 [oracle-sync.yml](/Users/sarahc/Downloads/JeonseChain-full/.github/workflows/oracle-sync.yml) 기준으로 GitHub Actions에서 30분마다 돌도록 설정할 수 있습니다. 이 워크플로는 공공데이터 집계, ECOS benchmark, Sepolia 업데이트, GitHub 공개 snapshot 갱신을 함께 처리합니다.
 
 ## Frontend Highlights
 
@@ -110,10 +125,12 @@ npm run dev
 
 이번 정리 기준으로 확인한 항목:
 
-- Hardhat tests: `8 passing`
+- Hardhat tests: `17 passing`
 - Playwright smoke tests: `2 passed`
 - Vercel production deploy: success
 
 ## Portfolio Summary
 
 JeonseChain은 "전세보증금 보호"를 단순한 설명 수준이 아니라, 실제 계약 등록, 예치, 위험 감지, 만기 반환, 퇴실 정산, 계약 연장/중도 해지까지 이어지는 흐름으로 구현한 MVP입니다.
+
+실제 MMF/국채 운용 연동은 아직 붙이지 않았고, 현재는 ERC-4626 원금 보관 구조 + 모의 수익 accrual + 공공데이터 기반 위험 오라클까지를 구현 범위로 둡니다.
