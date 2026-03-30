@@ -35,10 +35,10 @@ export default function AddressSearchPanel({
     <section className="glass-card overflow-hidden p-5 sm:p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Address Search</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">부동산 주소 검색</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">주소 검색 후 계약 흐름을 시작하세요</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-            실제 MVP에서는 도로명주소 API로 연결하면 되고, 지금은 데모용 샘플 주소와 리스크 스코어, 미니 지도 프리뷰를 먼저 붙여놨습니다.
+            주소를 선택하면 해당 지역의 리스크 스코어와 지도 미리보기가 바로 표시됩니다. 선택한 주소는 계약 등록 첫 단계로 자동으로 이어집니다.
           </p>
         </div>
         <div className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
@@ -108,7 +108,7 @@ export default function AddressSearchPanel({
         <div className="rounded-[28px] border border-white/10 bg-slate-950/55 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Mini Map Preview</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">지도 미리보기</p>
               <p className="mt-2 text-lg font-semibold text-white">
                 {selectedAddress ? selectedAddress.building : '주소를 선택하면 미리보기가 나옵니다'}
               </p>
@@ -153,9 +153,9 @@ export default function AddressSearchPanel({
           </div>
 
           <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-medium text-white">다음 연결 포인트</p>
+            <p className="text-sm font-medium text-white">계약 등록으로 이어집니다</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              선택한 주소는 임대인 패널의 부동산 라벨 제안값으로 넘겨서 계약 등록 입력 피로를 줄일 수 있습니다.
+              선택한 주소는 아래 워크스페이스 Step 1에 자동으로 불러와져 계약 등록 입력을 빠르게 시작할 수 있습니다.
             </p>
             {selectedAddress ? (
               <a

@@ -44,6 +44,14 @@ type WalletViewState =
   | 'connected-no-contract'
   | 'connected-active-contract';
 
+const WALLET_STATE_LABEL: Record<WalletViewState, string> = {
+  'wallet-not-connected':      '미연결',
+  'wallet-connecting':         '연결 중',
+  'wrong-network':             '네트워크 불일치',
+  'connected-no-contract':     '연결됨 · 계약 없음',
+  'connected-active-contract': '활성 계약 있음',
+};
+
 type SummaryView = {
   title: string;
   addressLine: string;
@@ -394,7 +402,7 @@ export default function Home() {
               </span>
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              전세보증금을 구조화해 보호하고, 위험 감지와 자동 반환, 제한적 퇴실 정산까지 연결하는 부동산 금융 인프라
+              공공데이터 · 온체인 규칙 · 설명 가능한 정산 흐름으로 전세보증금을 구조적으로 보호하는 부동산 금융 플랫폼
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -445,14 +453,16 @@ export default function Home() {
           <div className="glass-card subtle-grid overflow-hidden p-5 sm:p-7">
             <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-center">
               <div className="max-w-3xl">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Onboarding Dashboard</p>
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">전세보증금 구조 보호 플랫폼</p>
                 <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
                   전세보증금을 구조화해 보호하는
                   <br className="hidden sm:block" />
                   한국형 부동산 금융 플랫폼
                 </h1>
                 <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
-                  지갑 연결 전에도 서비스 가치와 다음 행동이 보이도록, 주소 검색부터 데모 계약, 내 전세 계약 요약, 계약 진행 단계, 퇴실 정산 레이어까지 한 화면에서 이해할 수 있게 구성했습니다.
+                  주소 검색, 계약 등록, 보증금 예치, 위험 감지, 자동 반환, 제한적 퇴실 정산까지의 흐름을
+                  한 화면에서 이해할 수 있도록 구성했습니다. 발표용 데모로도, 실제 온체인 기능 시연용으로도
+                  바로 설명할 수 있는 구조입니다.
                 </p>
               </div>
 
@@ -488,10 +498,10 @@ export default function Home() {
 
             <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-400">
               <span className="rounded-full border border-white/10 px-3 py-2">
-                실사용 버튼은 아래 워크스페이스 Step 1으로 이동합니다.
+                실사용 흐름은 아래 워크스페이스 Step 1부터 시작됩니다.
               </span>
               <span className="rounded-full border border-white/10 px-3 py-2">
-                데모 버튼은 Guided Demo에서 시나리오를 고르는 흐름으로 연결됩니다.
+                데모 버튼은 시나리오별 계약 흐름 설명으로 바로 연결됩니다.
               </span>
             </div>
 
@@ -552,7 +562,7 @@ export default function Home() {
         >
           <SettlementPreview
             depositKRW={summaryView.depositKRW}
-            statusLabel={demoMode ? '정책/서비스 설명용 preview' : '실서비스 확장용 정산 레이어'}
+            statusLabel={demoMode ? '시나리오 시뮬레이션' : '실시간 온체인 정산 레이어'}
             settlementStatus={summaryView.settlementStatus}
             detailMode={detailMode}
             isDemoMode={demoMode}
@@ -577,7 +587,7 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
-                  연결 상태: {walletState}
+                  연결 상태: {WALLET_STATE_LABEL[walletState]}
                 </div>
               </div>
 
@@ -808,7 +818,7 @@ function WorkspaceEmptyState({
 }) {
   return (
     <div className="rounded-[28px] border border-dashed border-white/10 bg-slate-950/40 px-5 py-12 text-center">
-      <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Empty State</p>
+      <p className="text-sm uppercase tracking-[0.2em] text-slate-500">워크스페이스</p>
       <p className="mt-4 text-2xl font-semibold text-white">{title}</p>
       <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-400">{description}</p>
       <div className="mt-6 flex flex-wrap justify-center gap-3">

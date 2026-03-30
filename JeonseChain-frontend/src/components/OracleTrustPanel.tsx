@@ -68,15 +68,15 @@ export default function OracleTrustPanel({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
-              {detailMode ? 'Oracle Trust Layer / Explainability' : '오라클 신뢰 근거'}
+              {detailMode ? 'Oracle Trust Layer / Explainability' : '점수 산출 근거'}
             </p>
             <h2 className="mt-2 text-2xl font-semibold text-white">
-              {detailMode ? '왜 이 Risk Score가 나왔는지 보여주는 패널' : '왜 이런 보호 상태인지 보여주는 패널'}
+              {detailMode ? 'Why this risk score was derived' : '왜 이런 보호 상태가 나왔는지 보여줍니다'}
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-300">
               {detailMode
-                ? '실거래 집계, 한국은행 benchmark, 수동 attestation, 온체인 반영 기록을 한 곳에서 확인합니다.'
-                : '최근 공공데이터와 금리 데이터를 반영해 점수를 다시 계산했고, 그 결과를 보고서와 온체인 기록으로 검증할 수 있습니다.'}
+                ? 'Market transactions, benchmark rates, manual attestations, and on-chain updates are collected in one explainable layer.'
+                : '최근 공공데이터, 금리 benchmark, 수동 검토 결과를 함께 반영해 점수를 다시 계산했고, 그 결과를 보고서와 온체인 기록으로 검증할 수 있습니다.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -85,7 +85,7 @@ export default function OracleTrustPanel({
               onClick={() => fetchSnapshot()}
               className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
             >
-              새 근거 불러오기
+              최신 데이터 다시 보기
             </button>
             <button
               type="button"
@@ -93,7 +93,7 @@ export default function OracleTrustPanel({
               disabled={!snapshot}
               className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
-              자세히 보기
+              검증 정보 열기
             </button>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default function OracleTrustPanel({
               <div className="grid gap-4">
                 <PanelCard
                   title={detailMode ? 'Data Freshness / Sources' : '데이터 출처 및 신선도'}
-                  description="공공데이터, 금리 benchmark, 온체인 반영 시각을 함께 확인합니다."
+                  description="어떤 데이터를 언제 반영했는지 한눈에 확인합니다."
                 >
                   <div className="flex flex-wrap gap-2">
                     <SourceBadge label="국토부 공공데이터" />
@@ -177,8 +177,8 @@ export default function OracleTrustPanel({
                 </PanelCard>
 
                 <PanelCard
-                  title={detailMode ? 'Oracle Health / Verifiability' : '검증 가능성'}
-                  description="보고서, bundleHash, tx hash를 통해 검증 가능한 상태를 유지합니다."
+                  title={detailMode ? 'Oracle Health / Verifiability' : '검증 정보'}
+                  description="보고서 해시와 온체인 식별값을 통해 결과를 다시 확인할 수 있습니다."
                 >
                   <div className="grid gap-3 sm:grid-cols-2">
                     <MetricChip label="bundleHash" value={formatAddress(summary.bundleHash, 10, 8)} helper="보고서 해시" />

@@ -37,7 +37,7 @@ export default function GuidedStoryMode({
     <section className="glass-card overflow-hidden p-5 sm:p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Guided Demo</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">계약 시나리오 가이드</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">한 단계씩 따라가는 계약 스토리 모드</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
             처음 보는 사람도 흐름을 따라가기 쉽도록 계약의 현재 상황, 다음 액션, 진행 단계를 한 줄 스토리로 묶었습니다.

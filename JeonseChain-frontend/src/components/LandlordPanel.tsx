@@ -273,7 +273,7 @@ export default function LandlordPanel({
 
         <div className="space-y-4">
           <div className="rounded-[26px] border border-white/10 bg-slate-950/45 p-5">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Preview</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">등록 미리보기</p>
             <div className="mt-4 space-y-4">
               <SummaryRow label="예상 보증금" value={formatInputKRW(normalizedDeposit)} />
               <SummaryRow label="계약 기간" value={`${normalizedDuration || '0'}일`} />
@@ -283,11 +283,11 @@ export default function LandlordPanel({
           </div>
 
           <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
-            <p className="text-sm font-semibold text-white">UX 개선 포인트</p>
+            <p className="text-sm font-semibold text-white">등록 후 흐름</p>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-              <li>등록 후 leaseId를 자동 추출합니다.</li>
-              <li>Etherscan 로그를 수동으로 찾지 않아도 됩니다.</li>
-              <li>선택 계약은 브라우저에 저장돼 새로고침 후에도 유지됩니다.</li>
+              <li>등록 후 leaseId가 자동으로 추출돼 다음 단계로 바로 이어집니다.</li>
+              <li>Etherscan에서 로그를 직접 찾지 않아도 됩니다.</li>
+              <li>선택한 계약은 브라우저에 저장돼 새로고침 후에도 유지됩니다.</li>
             </ul>
           </div>
         </div>

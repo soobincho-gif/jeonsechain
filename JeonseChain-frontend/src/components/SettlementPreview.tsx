@@ -44,7 +44,7 @@ export default function SettlementPreview({
     <section className="glass-card overflow-hidden p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Move-out Settlement</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">퇴실 정산 레이어</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">퇴실 정산 / 분쟁 금액 보류</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
             전세보증금 전액을 임대인 재량으로 막지 않고, 무분쟁 금액은 자동 반환하고 분쟁 가능 금액만 제한적으로 보류하는 구조를 UI로 반영했습니다.
