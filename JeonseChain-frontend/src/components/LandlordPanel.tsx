@@ -1,0 +1,356 @@
+'use client';
+
+import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { decodeEventLog, isAddress, keccak256, parseEther, toBytes } from 'viem';
+import { CONTRACT_ADDRESSES, VAULT_ABI } from '@/lib/contracts';
+import { digitsOnly, explorerLink, formatInputKRW } from '@/lib/format';
+import { ActivityItem, LeaseDraft } from '@/lib/workflow';
+
+type LandlordPanelProps = {
+  activeLease: LeaseDraft | null;
+  suggestedPropertyLabel?: string;
+  onLeaseCreated: (lease: LeaseDraft) => void;
+  onActivity: (activity: Omit<ActivityItem, 'id' | 'timestamp'>) => void;
+};
+
+type SubmissionSnapshot = {
+  tenant: string;
+  depositKRW: string;
+  durationDays: string;
+  propertyLabel: string;
+  propertyId: `0x${string}`;
+  landlord?: string;
+};
+
+export default function LandlordPanel({
+  activeLease,
+  suggestedPropertyLabel,
+  onLeaseCreated,
+  onActivity,
+}: LandlordPanelProps) {
+  const { address } = useAccount();
+  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  const [form, setForm] = useState({
+    tenant: activeLease?.tenant ?? '',
+    depositKRW: activeLease?.depositKRW ?? '300000000',
+    durationDays: activeLease?.durationDays ?? '365',
+    propertyLabel: activeLease?.propertyLabel ?? '서울-마포구-APT-101',
+  });
+  const [lastLeaseId, setLastLeaseId] = useState(activeLease?.leaseId ?? '');
+  const submittedRef = useRef<SubmissionSnapshot | null>(null);
+  const handledReceiptRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!activeLease?.tenant) return;
+    setForm((current) => ({
+      ...current,
+      tenant: current.tenant || activeLease.tenant || '',
+    }));
+  }, [activeLease?.tenant]);
+
+  useEffect(() => {
+    if (!suggestedPropertyLabel) return;
+    setForm((current) => {
+      if (
+        current.propertyLabel &&
+        current.propertyLabel !== '서울-마포구-APT-101' &&
+        current.propertyLabel !== activeLease?.propertyLabel
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        propertyLabel: suggestedPropertyLabel,
+      };
+    });
+  }, [activeLease?.propertyLabel, suggestedPropertyLabel]);
+
+  const normalizedDeposit = digitsOnly(form.depositKRW);
+  const normalizedDuration = digitsOnly(form.durationDays);
+  const normalizedPropertyLabel = form.propertyLabel.trim();
+  const propertyId = keccak256(toBytes(normalizedPropertyLabel || 'unknown-property')) as `0x${string}`;
+  const tenantValid = isAddress(form.tenant);
+  const walletReady = Boolean(address);
+  const canSubmit =
+    walletReady &&
+    tenantValid &&
+    Boolean(normalizedDeposit) &&
+    Boolean(normalizedDuration) &&
+    Number(normalizedDuration) >= 365 &&
+    Boolean(normalizedPropertyLabel);
+
+  useEffect(() => {
+    if (!receipt || handledReceiptRef.current === receipt.transactionHash) return;
+    handledReceiptRef.current = receipt.transactionHash;
+
+    let detectedLeaseId = '';
+
+    for (const log of receipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: VAULT_ABI,
+          data: log.data,
+          topics: log.topics,
+        });
+
+        if (decoded.eventName === 'LeaseRegistered') {
+          detectedLeaseId = String(decoded.args.leaseId);
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (!detectedLeaseId) return;
+
+    const snapshot = submittedRef.current;
+
+    setLastLeaseId(detectedLeaseId);
+    onLeaseCreated({
+      leaseId: detectedLeaseId,
+      tenant: snapshot?.tenant,
+      landlord: snapshot?.landlord,
+      depositKRW: snapshot?.depositKRW,
+      durationDays: snapshot?.durationDays,
+      propertyLabel: snapshot?.propertyLabel,
+      propertyId: snapshot?.propertyId,
+      txHash: receipt.transactionHash,
+    });
+    onActivity({
+      title: '계약 등록이 완료됐어요',
+      description: 'leaseId를 자동 추출해서 임차인 단계와 실시간 모니터에 연결했습니다.',
+      tone: 'success',
+      leaseId: detectedLeaseId,
+      txHash: receipt.transactionHash,
+    });
+  }, [onActivity, onLeaseCreated, receipt]);
+
+  function handleRegister() {
+    if (!address || !canSubmit) return;
+
+    submittedRef.current = {
+      tenant: form.tenant,
+      depositKRW: normalizedDeposit,
+      durationDays: normalizedDuration,
+      propertyLabel: normalizedPropertyLabel,
+      propertyId,
+      landlord: address,
+    };
+
+    onActivity({
+      title: '계약 등록 요청을 보냈어요',
+      description: '지갑 승인 후 leaseId가 생성되면 자동으로 다음 단계에 채워집니다.',
+      tone: 'info',
+    });
+
+    writeContract({
+      address: CONTRACT_ADDRESSES.JeonseVault,
+      abi: VAULT_ABI,
+      functionName: 'registerLease',
+      args: [
+        form.tenant as `0x${string}`,
+        parseEther(normalizedDeposit),
+        BigInt(normalizedDuration),
+        propertyId,
+      ],
+    });
+  }
+
+  async function copyLeaseId() {
+    if (!lastLeaseId) return;
+    await navigator.clipboard.writeText(lastLeaseId);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(260px,320px)]">
+        <div className="rounded-[26px] border border-white/10 bg-slate-950/35 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.2em] text-teal-200/80">Landlord Workspace</p>
+              <h3 className="mt-2 text-2xl font-semibold text-white">임대인 계약 등록</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                계약 내용을 온체인에 등록하면 leaseId를 자동으로 저장하고, 임차인 납입 단계까지 같은 계약 문맥을 유지합니다.
+              </p>
+            </div>
+            <span className="self-start rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
+              Oracle pre-screen 포함
+            </span>
+          </div>
+
+          {!walletReady ? (
+            <div className="mt-5 rounded-[22px] border border-amber-400/20 bg-amber-400/10 px-4 py-4">
+              <p className="text-sm font-semibold text-white">지갑 연결 후 등록을 시작할 수 있어요</p>
+              <p className="mt-2 text-sm leading-6 text-slate-200">
+                지금은 입력값을 미리 채워볼 수 있고, 실제 `계약 등록 시작` 실행은 상단 `Connect Wallet` 연결 후 활성화됩니다.
+              </p>
+            </div>
+          ) : null}
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <Field label="임차인 주소" helper="보증금을 실제로 납입할 지갑 주소">
+              <input
+                value={form.tenant}
+                onChange={(event) => setForm((current) => ({ ...current, tenant: event.target.value.trim() }))}
+                placeholder="0x..."
+                className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
+              />
+              {!tenantValid && form.tenant ? (
+                <p className="mt-2 text-xs text-rose-300">유효한 EVM 주소 형식이 필요합니다.</p>
+              ) : null}
+            </Field>
+
+            <Field label="보증금" helper="KRW 토큰 기준 금액">
+              <input
+                value={form.depositKRW}
+                onChange={(event) => setForm((current) => ({ ...current, depositKRW: digitsOnly(event.target.value) }))}
+                placeholder="300000000"
+                className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
+              />
+              <p className="mt-2 text-xs text-slate-400">{formatInputKRW(normalizedDeposit)}</p>
+            </Field>
+
+            <Field label="임대 기간" helper="컨트랙트 최소 365일">
+              <input
+                value={form.durationDays}
+                onChange={(event) => setForm((current) => ({ ...current, durationDays: digitsOnly(event.target.value) }))}
+                placeholder="365"
+                className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
+              />
+              <p className={`mt-2 text-xs ${Number(normalizedDuration) >= 365 ? 'text-emerald-300' : 'text-amber-300'}`}>
+                {normalizedDuration ? `${normalizedDuration}일 계약` : '일수를 입력하세요'}
+              </p>
+            </Field>
+
+            <Field label="부동산 라벨" helper="라벨은 propertyId 해시로 변환됩니다.">
+              <input
+                value={form.propertyLabel}
+                onChange={(event) => setForm((current) => ({ ...current, propertyLabel: event.target.value }))}
+                placeholder="서울-마포구-APT-101"
+                className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
+              />
+              {suggestedPropertyLabel ? (
+                <p className="mt-2 text-xs text-cyan-200">
+                  주소 검색에서 선택한 제안값이 반영돼 있습니다.
+                </p>
+              ) : null}
+              <p className="mt-2 min-w-0 truncate font-mono text-xs text-slate-500">{propertyId}</p>
+            </Field>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              onClick={handleRegister}
+              disabled={!canSubmit || isPending || isConfirming}
+              className="rounded-full bg-teal-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            >
+              {!walletReady
+                ? '지갑 연결 후 등록 가능'
+                : isPending
+                  ? '지갑 승인 대기...'
+                  : isConfirming
+                    ? '블록 확인 중...'
+                    : '계약 등록 시작'}
+            </button>
+            {hash ? (
+              <a
+                href={explorerLink('tx', hash)}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-200 transition hover:border-teal-300/30"
+              >
+                현재 tx 보기
+              </a>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[26px] border border-white/10 bg-slate-950/45 p-5">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Preview</p>
+            <div className="mt-4 space-y-4">
+              <SummaryRow label="예상 보증금" value={formatInputKRW(normalizedDeposit)} />
+              <SummaryRow label="계약 기간" value={`${normalizedDuration || '0'}일`} />
+              <SummaryRow label="propertyId" value={propertyId.slice(0, 16) + '...'} />
+              <SummaryRow label="다음 단계" value="임차인 승인 및 납입" />
+            </div>
+          </div>
+
+          <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
+            <p className="text-sm font-semibold text-white">UX 개선 포인트</p>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+              <li>등록 후 leaseId를 자동 추출합니다.</li>
+              <li>Etherscan 로그를 수동으로 찾지 않아도 됩니다.</li>
+              <li>선택 계약은 브라우저에 저장돼 새로고침 후에도 유지됩니다.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {(isSuccess || lastLeaseId) && (
+        <div className="rounded-[26px] border border-emerald-400/20 bg-emerald-400/10 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-emerald-100">계약 등록 완료</p>
+              <p className="mt-2 text-sm leading-6 text-emerald-50/85">
+                생성된 leaseId는 임차인 패널과 계약 모니터에 자동으로 전달됩니다.
+              </p>
+              <p className="mt-3 break-all font-mono text-xs text-white">{lastLeaseId}</p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <button
+                onClick={copyLeaseId}
+                className="rounded-full border border-emerald-100/20 px-4 py-2 text-sm text-emerald-50 transition hover:border-emerald-100/40 sm:w-auto"
+              >
+                leaseId 복사
+              </button>
+              {hash ? (
+                <a
+                  href={explorerLink('tx', hash)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-emerald-100/20 px-4 py-2 text-sm text-emerald-50 transition hover:border-emerald-100/40 sm:w-auto"
+                >
+                  트랜잭션 보기
+                </a>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  helper,
+  children,
+}: {
+  label: string;
+  helper: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-medium text-slate-200">{label}</span>
+      <span className="mt-1 block text-xs text-slate-500">{helper}</span>
+      <div className="mt-3">{children}</div>
+    </label>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col items-start gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <span className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</span>
+      <span className="min-w-0 break-all text-sm font-medium text-white [overflow-wrap:anywhere]">{value}</span>
+    </div>
+  );
+}

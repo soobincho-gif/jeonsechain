@@ -1,0 +1,656 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(8, 145, 178, 0.18), transparent 32%),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 24%),
+    linear-gradient(180deg, #06111d 0%, #08111e 36%, #071019 100%);
+  color: #e5eef7;
+  font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.25);
+  color: #f8fafc;
+}
+
+@keyframes shieldPulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes shieldRing {
+  0% {
+    opacity: 0.12;
+    transform: scale(0.88);
+  }
+  70% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+}
+
+@keyframes flowDot {
+  0% {
+    opacity: 0;
+    transform: translateX(0) scale(0.75);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(136px) scale(1);
+  }
+}
+
+@keyframes returnDot {
+  0% {
+    opacity: 0;
+    transform: translateX(0) scale(0.7);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(92px) scale(1);
+  }
+}
+
+@keyframes guidedProgress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes subtlePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(34, 211, 238, 0);
+  }
+}
+
+@keyframes barReveal {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes pinDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-26px) scale(0.82);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(5px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes mapPulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.88);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes routeSweep {
+  0% {
+    opacity: 0.25;
+    transform: scaleX(0.72);
+    transform-origin: left;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0.25;
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+}
+
+@keyframes floatTag {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes contractCardFloat {
+  0%,
+  100% {
+    transform: rotate(-7deg) translateY(0);
+  }
+  50% {
+    transform: rotate(-7deg) translateY(-5px);
+  }
+}
+
+@keyframes spotlightRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.18);
+  }
+  70% {
+    box-shadow: 0 0 0 18px rgba(34, 211, 238, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+  }
+}
+
+@layer components {
+  .shell {
+    @apply mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8;
+  }
+
+  .glass-card {
+    @apply rounded-[30px] border border-white/10 bg-white/[0.04] shadow-[0_24px_90px_rgba(2,6,23,0.38)] backdrop-blur-xl;
+  }
+
+  .subtle-grid {
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-position: -1px -1px;
+  }
+
+  .hero-scene {
+    position: relative;
+    overflow: hidden;
+    min-height: 280px;
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background:
+      radial-gradient(circle at 20% 20%, rgba(34, 211, 238, 0.12), transparent 38%),
+      linear-gradient(180deg, rgba(2, 6, 23, 0.82), rgba(15, 23, 42, 0.75));
+    padding: 20px;
+  }
+
+  .hero-scene__ambient {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(18px);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .hero-scene__ambient--left {
+    left: 12px;
+    top: 52px;
+    width: 74px;
+    height: 74px;
+    background: rgba(34, 211, 238, 0.12);
+  }
+
+  .hero-scene__ambient--right {
+    right: 18px;
+    bottom: 54px;
+    width: 92px;
+    height: 92px;
+    background: rgba(59, 130, 246, 0.12);
+  }
+
+  .hero-scene__status {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(2, 6, 23, 0.7);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #dbeafe;
+  }
+
+  .hero-scene__status-dot {
+    height: 8px;
+    width: 8px;
+    border-radius: 9999px;
+    background: currentColor;
+    animation: subtlePulse 2.2s ease-in-out infinite;
+  }
+
+  .hero-scene__tag {
+    position: absolute;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(2, 6, 23, 0.72);
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #dbeafe;
+    backdrop-filter: blur(8px);
+    animation: floatTag 3.2s ease-in-out infinite;
+  }
+
+  .hero-scene__tag--house {
+    left: 14px;
+    top: 58px;
+  }
+
+  .hero-scene__tag--vault {
+    right: 24px;
+    top: 70px;
+    animation-delay: 0.6s;
+  }
+
+  .hero-scene__tag--return {
+    right: 24px;
+    bottom: 106px;
+    animation-delay: 1.1s;
+  }
+
+  .hero-scene__ground {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 26px;
+    height: 58px;
+    border-radius: 9999px;
+    background: radial-gradient(circle at center, rgba(14, 116, 144, 0.22), rgba(15, 23, 42, 0));
+    filter: blur(10px);
+  }
+
+  .hero-scene__contract-card {
+    position: absolute;
+    left: 118px;
+    top: 82px;
+    width: 54px;
+    height: 72px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.82));
+    padding: 14px 10px;
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.28);
+    transform: rotate(-7deg);
+    animation: contractCardFloat 3.4s ease-in-out infinite;
+  }
+
+  .hero-scene__contract-line {
+    height: 6px;
+    border-radius: 9999px;
+    background: rgba(191, 219, 254, 0.78);
+  }
+
+  .hero-scene__contract-line--short {
+    margin-top: 8px;
+    width: 65%;
+    background: rgba(148, 163, 184, 0.72);
+  }
+
+  .hero-scene__contract-sign {
+    position: absolute;
+    left: 11px;
+    bottom: 12px;
+    width: 24px;
+    height: 10px;
+    border-bottom: 2px solid rgba(34, 211, 238, 0.7);
+    border-radius: 9999px;
+    transform: rotate(-10deg);
+  }
+
+  .hero-scene__house {
+    position: absolute;
+    left: 26px;
+    top: 94px;
+    width: 96px;
+    height: 104px;
+  }
+
+  .hero-scene__roof {
+    position: absolute;
+    left: 8px;
+    top: -10px;
+    width: 78px;
+    height: 78px;
+    transform: rotate(45deg);
+    border-top: 2px solid rgba(191, 219, 254, 0.72);
+    border-left: 2px solid rgba(191, 219, 254, 0.72);
+    border-radius: 12px 0 0 0;
+  }
+
+  .hero-scene__body {
+    position: absolute;
+    bottom: 0;
+    left: 8px;
+    display: grid;
+    grid-template-columns: 1fr 0.9fr 1fr;
+    align-items: end;
+    gap: 10px;
+    width: 80px;
+    height: 68px;
+    border: 1px solid rgba(191, 219, 254, 0.52);
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.76);
+    padding: 14px 12px 12px;
+  }
+
+  .hero-scene__window {
+    height: 24px;
+    border-radius: 9999px;
+    border: 1px solid rgba(34, 211, 238, 0.34);
+    background: rgba(34, 211, 238, 0.12);
+  }
+
+  .hero-scene__door {
+    height: 34px;
+    border-radius: 9999px 9999px 10px 10px;
+    border: 1px solid rgba(191, 219, 254, 0.45);
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  .hero-scene__shield,
+  .hero-scene__shield-ring {
+    position: absolute;
+    inset: -16px;
+    border-radius: 34px;
+    pointer-events: none;
+  }
+
+  .hero-scene__shield {
+    border: 1px solid rgba(103, 232, 249, 0.32);
+    background: radial-gradient(circle at center, rgba(34, 211, 238, 0.12), transparent 66%);
+    animation: shieldPulse 3s ease-in-out infinite;
+  }
+
+  .hero-scene__shield-ring {
+    border: 1px solid rgba(165, 243, 252, 0.25);
+    animation: shieldRing 3s ease-out infinite;
+  }
+
+  .hero-scene__vault {
+    position: absolute;
+    right: 28px;
+    top: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 112px;
+    height: 96px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 24px;
+    background: rgba(15, 23, 42, 0.82);
+    box-shadow: 0 14px 40px rgba(8, 15, 30, 0.28);
+  }
+
+  .hero-scene__vault-lock {
+    width: 30px;
+    height: 24px;
+    border: 2px solid rgba(224, 242, 254, 0.75);
+    border-radius: 8px;
+    position: relative;
+  }
+
+  .hero-scene__vault-lock::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -16px;
+    width: 18px;
+    height: 16px;
+    transform: translateX(-50%);
+    border: 2px solid rgba(224, 242, 254, 0.72);
+    border-bottom: 0;
+    border-radius: 9999px 9999px 0 0;
+  }
+
+  .hero-scene__label {
+    margin-top: 18px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #f8fafc;
+    letter-spacing: 0.08em;
+  }
+
+  .hero-scene__flow {
+    position: absolute;
+    height: 2px;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, rgba(34, 211, 238, 0.08), rgba(34, 211, 238, 0.38), rgba(255, 255, 255, 0.06));
+  }
+
+  .hero-scene__flow--main {
+    left: 138px;
+    top: 152px;
+    width: 108px;
+  }
+
+  .hero-scene__flow--return {
+    right: 46px;
+    bottom: 66px;
+    width: 92px;
+  }
+
+  .hero-scene__dot {
+    position: absolute;
+    top: -4px;
+    left: -12px;
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+    background: radial-gradient(circle at center, #ffffff, #67e8f9 68%, rgba(34, 211, 238, 0));
+    box-shadow: 0 0 18px rgba(34, 211, 238, 0.45);
+    animation: flowDot 2.8s linear infinite;
+  }
+
+  .hero-scene__dot--delay-1 {
+    animation-delay: 0.85s;
+  }
+
+  .hero-scene__dot--delay-2 {
+    animation-delay: 1.7s;
+  }
+
+  .hero-scene__dot--return {
+    left: -10px;
+    background: radial-gradient(circle at center, #ffffff, #a7f3d0 68%, rgba(16, 185, 129, 0));
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.35);
+    animation-name: returnDot;
+    animation-duration: 2.4s;
+  }
+
+  .hero-scene__return-lane {
+    position: absolute;
+    right: 26px;
+    bottom: 18px;
+    display: grid;
+    gap: 10px;
+    width: 136px;
+  }
+
+  .hero-scene__return-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.72);
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #e2e8f0;
+  }
+
+  .hero-scene__return-box--safe {
+    border-color: rgba(16, 185, 129, 0.24);
+    background: rgba(16, 185, 129, 0.1);
+  }
+
+  .hero-scene__return-box--hold {
+    border-color: rgba(251, 191, 36, 0.22);
+    background: rgba(245, 158, 11, 0.08);
+  }
+
+  .hero-scene-safe .hero-scene__status {
+    color: #a7f3d0;
+  }
+
+  .hero-scene-monitor .hero-scene__status {
+    color: #fde68a;
+  }
+
+  .hero-scene-monitor .hero-scene__shield {
+    border-color: rgba(251, 191, 36, 0.3);
+    background: radial-gradient(circle at center, rgba(251, 191, 36, 0.12), transparent 66%);
+  }
+
+  .hero-scene-monitor .hero-scene__dot {
+    background: radial-gradient(circle at center, #fff7ed, #fcd34d 68%, rgba(245, 158, 11, 0));
+    box-shadow: 0 0 18px rgba(245, 158, 11, 0.4);
+  }
+
+  .hero-scene-warning .hero-scene__status {
+    color: #fecdd3;
+  }
+
+  .hero-scene-warning .hero-scene__shield {
+    border-color: rgba(244, 63, 94, 0.3);
+    background: radial-gradient(circle at center, rgba(251, 113, 133, 0.12), transparent 66%);
+  }
+
+  .hero-scene-warning .hero-scene__dot {
+    background: radial-gradient(circle at center, #fff1f2, #fb7185 68%, rgba(244, 63, 94, 0));
+    box-shadow: 0 0 18px rgba(244, 63, 94, 0.38);
+  }
+
+  .guided-step-current {
+    animation: subtlePulse 2.2s ease-in-out infinite;
+  }
+
+  .map-pin-drop {
+    animation: pinDrop 720ms cubic-bezier(0.2, 0.9, 0.22, 1.05) both;
+  }
+
+  .mini-map-pulse {
+    animation: mapPulse 2.8s ease-in-out infinite;
+  }
+
+  .mini-map-route {
+    animation: routeSweep 2.6s ease-in-out infinite;
+  }
+
+  .section-spotlight {
+    animation: spotlightRing 1.35s ease-out;
+  }
+}
+
+@media (max-width: 639px) {
+  .hero-scene {
+    min-height: 250px;
+  }
+
+  .hero-scene__status {
+    position: static;
+    margin-bottom: 16px;
+  }
+
+  .hero-scene__house {
+    left: 18px;
+    top: 96px;
+    transform: scale(0.92);
+    transform-origin: left top;
+  }
+
+  .hero-scene__contract-card {
+    left: 98px;
+    top: 92px;
+    transform: scale(0.92) rotate(-7deg);
+  }
+
+  .hero-scene__vault {
+    right: 18px;
+    top: 108px;
+    transform: scale(0.92);
+    transform-origin: right top;
+  }
+
+  .hero-scene__flow--main {
+    left: 120px;
+    top: 156px;
+    width: 92px;
+  }
+
+  .hero-scene__return-lane {
+    right: 18px;
+    width: 124px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .hero-scene__status-dot,
+  .hero-scene__tag,
+  .hero-scene__contract-card,
+  .hero-scene__shield,
+  .hero-scene__shield-ring,
+  .hero-scene__dot,
+  .guided-step-current,
+  .map-pin-drop,
+  .mini-map-pulse,
+  .mini-map-route,
+  .section-spotlight,
+  .motion-safe\:animate-\[guidedProgress_1s_ease-out\],
+  .motion-safe\:animate-\[barReveal_1s_ease-out\],
+  .motion-safe\:animate-\[barReveal_1s_ease-out_180ms_both\] {
+    animation: none !important;
+  }
+}

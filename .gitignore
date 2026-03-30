@@ -1,0 +1,15 @@
+.DS_Store
+.claude/
+package-lock.json
+
+JeonseChain/.env
+JeonseChain/node_modules/
+JeonseChain/artifacts/
+JeonseChain/cache/
+JeonseChain/.keeper-state.json
+
+JeonseChain-frontend/node_modules/
+JeonseChain-frontend/.next/
+JeonseChain-frontend/test-results/
+JeonseChain-frontend/public/evidence/
+JeonseChain-frontend/data/evidence/

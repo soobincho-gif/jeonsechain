@@ -1,0 +1,7 @@
+.next/
+node_modules/
+public/evidence/*
+!public/evidence/.gitkeep
+data/evidence/*
+!data/evidence/.gitkeep
+.vercel
