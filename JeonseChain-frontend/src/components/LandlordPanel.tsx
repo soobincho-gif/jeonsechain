@@ -5,12 +5,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { decodeEventLog, isAddress, keccak256, parseEther, toBytes } from 'viem';
 import { CONTRACT_ADDRESSES, VAULT_ABI } from '@/lib/contracts';
+import { AddressRecord } from '@/lib/demo-data';
 import { digitsOnly, explorerLink, formatInputKRW } from '@/lib/format';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
 type LandlordPanelProps = {
   activeLease: LeaseDraft | null;
   suggestedPropertyLabel?: string;
+  selectedAddress?: AddressRecord | null;
   onLeaseCreated: (lease: LeaseDraft) => void;
   onActivity: (activity: Omit<ActivityItem, 'id' | 'timestamp'>) => void;
 };
@@ -27,6 +29,7 @@ type SubmissionSnapshot = {
 export default function LandlordPanel({
   activeLease,
   suggestedPropertyLabel,
+  selectedAddress,
   onLeaseCreated,
   onActivity,
 }: LandlordPanelProps) {
@@ -83,6 +86,7 @@ export default function LandlordPanel({
     Boolean(normalizedDuration) &&
     Number(normalizedDuration) >= 365 &&
     Boolean(normalizedPropertyLabel);
+  const riskMeta = selectedAddress ? getRiskMeta(selectedAddress.riskScore, selectedAddress.riskLabel) : null;
 
   useEffect(() => {
     if (!receipt || handledReceiptRef.current === receipt.transactionHash) return;
@@ -190,6 +194,32 @@ export default function LandlordPanel({
               <p className="mt-2 text-sm leading-6 text-slate-200">
                 지금은 입력값을 미리 채워볼 수 있고, 실제 `계약 등록 시작` 실행은 상단 `Connect Wallet` 연결 후 활성화됩니다.
               </p>
+            </div>
+          ) : null}
+
+          {selectedAddress && riskMeta ? (
+            <div className={`mt-5 rounded-[24px] border px-4 py-4 ${riskMeta.surfaceClass}`}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">주소 선택 직후 리스크 사전 점검</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">
+                    {selectedAddress.roadAddress}
+                    <span className="mx-2 text-slate-500">·</span>
+                    {selectedAddress.building}
+                  </p>
+                </div>
+                <span className={`self-start rounded-full border px-3 py-1 text-xs font-semibold ${riskMeta.badgeClass}`}>
+                  {riskMeta.badgeLabel}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <SummaryRow label="현재 위험 점수" value={`${selectedAddress.riskScore}점`} />
+                <SummaryRow label="추천 판단" value={riskMeta.recommendation} />
+                <SummaryRow label="권장 액션" value={riskMeta.nextAction} />
+              </div>
+
+              <p className="mt-4 text-sm leading-6 text-slate-200/90">{riskMeta.description}</p>
             </div>
           ) : null}
 
@@ -353,4 +383,37 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
       <span className="min-w-0 break-all text-sm font-medium text-white [overflow-wrap:anywhere]">{value}</span>
     </div>
   );
+}
+
+function getRiskMeta(score: number, label: AddressRecord['riskLabel']) {
+  if (label === 'Safe' || score >= 75) {
+    return {
+      badgeLabel: '계약 진행 추천',
+      recommendation: '바로 진행 가능',
+      nextAction: '보증금·기간 입력 후 등록',
+      description: '최근 위험 점수가 안정권이라 등록 단계로 바로 넘어가도 설명이 자연스럽습니다.',
+      surfaceClass: 'border-emerald-400/20 bg-emerald-400/10',
+      badgeClass: 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100',
+    };
+  }
+
+  if (label === 'Monitor' || score >= 55) {
+    return {
+      badgeLabel: '조건 확인 후 진행',
+      recommendation: '추가 확인 필요',
+      nextAction: '계약 특약과 위험 근거 같이 검토',
+      description: '경고 단계는 아니지만, 보증금 규모와 담보·등기 신호를 함께 설명해주면 더 설득력 있는 데모가 됩니다.',
+      surfaceClass: 'border-amber-400/20 bg-amber-400/10',
+      badgeClass: 'border-amber-300/25 bg-amber-300/10 text-amber-100',
+    };
+  }
+
+  return {
+    badgeLabel: '추가 검토 없이는 비추천',
+    recommendation: '등록 전 재검토',
+    nextAction: '다른 주소 비교 또는 보호 조건 강화',
+    description: '이 주소는 현재 위험 구간이라, 그대로 등록하기보다 위험 근거를 확인하거나 다른 후보를 비교해보는 흐름이 더 적절합니다.',
+    surfaceClass: 'border-rose-400/20 bg-rose-400/10',
+    badgeClass: 'border-rose-300/25 bg-rose-300/10 text-rose-100',
+  };
 }

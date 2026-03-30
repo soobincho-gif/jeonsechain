@@ -7,6 +7,7 @@ import { useAccount, useChainId, useReadContract, useSwitchChain } from 'wagmi';
 import AddressSearchPanel from '@/components/AddressSearchPanel';
 import GuidedStoryMode from '@/components/GuidedStoryMode';
 import HeroProtectionScene from '@/components/HeroProtectionScene';
+import HugMultisigPanel from '@/components/HugMultisigPanel';
 import LandlordPanel from '@/components/LandlordPanel';
 import LeaseViewer from '@/components/LeaseViewer';
 import LiveMonitor from '@/components/LiveMonitor';
@@ -530,6 +531,14 @@ export default function Home() {
           />
         </div>
 
+        <div className="mt-6">
+          <HugMultisigPanel
+            activeLease={demoMode ? null : activeLease}
+            autoRefreshEnabled={autoRefreshEnabled}
+            onActivity={pushActivity}
+          />
+        </div>
+
         <div
           ref={guidedDemoRef}
           className={`mt-6 scroll-mt-24 ${highlightedSection === 'demo' ? 'section-spotlight rounded-[32px]' : ''}`}
@@ -630,6 +639,7 @@ export default function Home() {
                             ? `${selectedAddress.roadAddress} | ${selectedAddress.building}`
                             : undefined
                         }
+                        selectedAddress={selectedAddress}
                         onLeaseCreated={(lease) => mergeLease(lease, 'tenant')}
                         onActivity={pushActivity}
                       />
