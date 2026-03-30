@@ -3,4 +3,5 @@ node_modules/
 artifacts/
 cache/
 deployments/*.json
+!deployments/sepolia.json
 .keeper-state.json

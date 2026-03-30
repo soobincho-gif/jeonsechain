@@ -5,6 +5,9 @@ import { ORACLE_FALLBACK_SNAPSHOT } from '@/lib/oracle-fallback';
 import type { OracleReport, OracleSnapshot } from '@/lib/oracle';
 import { riskLabelFromScore } from '@/lib/oracle';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const DEFAULT_REMOTE_STATUS_URL =
   'https://raw.githubusercontent.com/soobincho-gif/jeonsechain/main/oracle-live/latest.json';
 
@@ -129,9 +132,14 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
         'Content-Disposition': `inline; filename="${payload.latest.reportFileName ?? 'oracle-report.json'}"`,
+        'Cache-Control': 'no-store, max-age=0',
       },
     });
   }
 
-  return NextResponse.json(payload);
+  return NextResponse.json(payload, {
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+    },
+  });
 }
