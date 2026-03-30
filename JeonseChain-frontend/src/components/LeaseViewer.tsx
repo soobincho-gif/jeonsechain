@@ -22,6 +22,8 @@ import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 import OnchainLeaseChangePanel from '@/components/OnchainLeaseChangePanel';
 import OnchainSettlementPanel from '@/components/OnchainSettlementPanel';
 
+const ZERO_BYTES32 = `0x${'0'.repeat(64)}` as const;
+
 type LeaseViewerProps = {
   activeLease: LeaseDraft | null;
   onLeaseSelected: (leaseId: string) => void;
@@ -99,6 +101,22 @@ export default function LeaseViewer({
     address: CONTRACT_ADDRESSES.JeonseVault,
     abi: VAULT_ABI,
     functionName: 'getProtectedAssets',
+    args: leaseReady ? [queried as `0x${string}`] : undefined,
+    query: { enabled: leaseReady, refetchInterval: 10000 },
+  });
+
+  const { data: leaseDocuments } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseVault,
+    abi: VAULT_ABI,
+    functionName: 'getLeaseDocuments',
+    args: leaseReady ? [queried as `0x${string}`] : undefined,
+    query: { enabled: leaseReady, refetchInterval: 10000 },
+  });
+
+  const { data: leaseTrustRecord } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseVault,
+    abi: VAULT_ABI,
+    functionName: 'getLeaseTrustRecord',
     args: leaseReady ? [queried as `0x${string}`] : undefined,
     query: { enabled: leaseReady, refetchInterval: 10000 },
   });
@@ -351,6 +369,74 @@ export default function LeaseViewer({
                 </div>
               </div>
 
+              <div className="mt-5 rounded-[24px] border border-white/10 bg-slate-950/45 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-white">온체인 계약 근거</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      이번 배포본부터는 계약서 해시와 정상 종료·제때 반환·분쟁 여부 같은 신뢰 근거도 함께 조회할 수 있습니다.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
+                    docs + trust events
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <InfoBox
+                    label="문서 해시 첨부"
+                    value={leaseTrustRecord?.[0] ? '등록됨' : '아직 없음'}
+                    helper={
+                      leaseDocuments?.[3] && leaseDocuments[3] > BigInt(0)
+                        ? `기록 시각 ${formatDateTimeFromUnix(leaseDocuments[3])}`
+                        : '계약서·특약·체크리스트 해시를 별도로 남길 수 있습니다.'
+                    }
+                  />
+                  <InfoBox
+                    label="정상 종료 기록"
+                    value={leaseTrustRecord?.[1] ? '확인됨' : '대기 중'}
+                    helper="분쟁 없이 계약 종료되면 true로 기록됩니다."
+                  />
+                  <InfoBox
+                    label="제때 반환"
+                    value={leaseTrustRecord?.[2] ? '기록됨' : '미기록'}
+                    helper="만기 후 7일 내 반환되면 신뢰 이벤트가 남습니다."
+                  />
+                  <InfoBox
+                    label="분쟁 / 응답 이력"
+                    value={
+                      leaseTrustRecord?.[3]
+                        ? '분쟁 발생'
+                        : leaseTrustRecord?.[4]
+                          ? '응답 기한 준수'
+                          : '아직 없음'
+                    }
+                    helper="퇴실 정산 중 분쟁 발생과 기한 내 응답 여부를 함께 기록합니다."
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <InfoBox
+                    label="계약서 해시"
+                    value={hasMeaningfulHash(leaseDocuments?.[0]) ? formatAddress(String(leaseDocuments?.[0]), 10, 8) : '없음'}
+                    helper="원문 대신 요약 또는 PDF 해시"
+                    mono
+                  />
+                  <InfoBox
+                    label="특약 해시"
+                    value={hasMeaningfulHash(leaseDocuments?.[1]) ? formatAddress(String(leaseDocuments?.[1]), 10, 8) : '없음'}
+                    helper="특약 또는 추가 합의 해시"
+                    mono
+                  />
+                  <InfoBox
+                    label="체크리스트 해시"
+                    value={hasMeaningfulHash(leaseDocuments?.[2]) ? formatAddress(String(leaseDocuments?.[2]), 10, 8) : '없음'}
+                    helper="입주 점검·사진 묶음 설명 해시"
+                    mono
+                  />
+                </div>
+              </div>
+
               <OnchainLeaseChangePanel
                 leaseId={queried}
                 leaseReady={leaseReady}
@@ -467,4 +553,8 @@ function LoadingState() {
       ))}
     </div>
   );
+}
+
+function hasMeaningfulHash(value: unknown) {
+  return typeof value === 'string' && value !== ZERO_BYTES32;
 }

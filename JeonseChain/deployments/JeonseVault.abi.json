@@ -360,6 +360,31 @@
         "internalType": "bytes32",
         "name": "leaseId",
         "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tenant",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "returnedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "DepositReturnedOnTime",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
       }
     ],
     "name": "DisputeRaised",
@@ -524,6 +549,74 @@
         "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "landlord",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tenant",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "disputeFree",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "completedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "LeaseCompleted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "leaseDocumentHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "specialTermsHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "checklistHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "LeaseDocumentsAttached",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
+      },
+      {
         "indexed": false,
         "internalType": "address",
         "name": "tenant",
@@ -600,6 +693,31 @@
       }
     ],
     "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tenant",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "submittedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "ResponseSubmittedWithinDeadline",
     "type": "event"
   },
   {
@@ -712,6 +830,31 @@
       }
     ],
     "name": "SettlementClaimSubmitted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tenant",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "responseHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "SettlementDisputeOpened",
     "type": "event"
   },
   {
@@ -1104,6 +1247,19 @@
   },
   {
     "inputs": [],
+    "name": "ON_TIME_RETURN_WINDOW",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "ORACLE_ROLE",
     "outputs": [
       {
@@ -1200,6 +1356,34 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "leaseDocumentHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "specialTermsHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "checklistHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "attachLeaseDocuments",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1471,12 +1655,95 @@
         "type": "bytes32"
       }
     ],
+    "name": "getLeaseDocuments",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "leaseDocumentHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "specialTermsHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "checklistHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "recordedAt",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
+      }
+    ],
     "name": "getLeaseState",
     "outputs": [
       {
         "internalType": "enum JeonseVault.ContractState",
         "name": "",
         "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getLeaseTrustRecord",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "documentsAttached",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "normalCompletion",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "depositReturnedOnTime",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "settlementDisputeOpened",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "responseSubmittedWithinDeadline",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "completedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "returnedAt",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -1756,6 +2023,89 @@
         "internalType": "bytes32",
         "name": "requestHash",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "leaseDocuments",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "leaseDocumentHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "specialTermsHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "checklistHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "recordedAt",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "leaseTrustRecords",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "documentsAttached",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "normalCompletion",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "depositReturnedOnTime",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "settlementDisputeOpened",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "responseSubmittedWithinDeadline",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "completedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "returnedAt",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -2108,6 +2458,55 @@
       }
     ],
     "name": "registerLease",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "leaseId",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tenant",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "depositAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "durationDays",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "propertyId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "leaseDocumentHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "specialTermsHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "checklistHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "registerLeaseWithDocuments",
     "outputs": [
       {
         "internalType": "bytes32",

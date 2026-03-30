@@ -26,6 +26,8 @@ type SubmissionSnapshot = {
   landlord?: string;
 };
 
+const ZERO_BYTES32 = `0x${'0'.repeat(64)}` as const;
+
 export default function LandlordPanel({
   activeLease,
   suggestedPropertyLabel,
@@ -42,6 +44,9 @@ export default function LandlordPanel({
     depositKRW: activeLease?.depositKRW ?? '300000000',
     durationDays: activeLease?.durationDays ?? '365',
     propertyLabel: activeLease?.propertyLabel ?? '서울-마포구-APT-101',
+    leaseDocumentMemo: '',
+    specialTermsMemo: '',
+    checklistMemo: '',
   });
   const [lastLeaseId, setLastLeaseId] = useState(activeLease?.leaseId ?? '');
   const submittedRef = useRef<SubmissionSnapshot | null>(null);
@@ -76,6 +81,13 @@ export default function LandlordPanel({
   const normalizedDeposit = digitsOnly(form.depositKRW);
   const normalizedDuration = digitsOnly(form.durationDays);
   const normalizedPropertyLabel = form.propertyLabel.trim();
+  const normalizedLeaseDocumentMemo = form.leaseDocumentMemo.trim();
+  const normalizedSpecialTermsMemo = form.specialTermsMemo.trim();
+  const normalizedChecklistMemo = form.checklistMemo.trim();
+  const hasDocumentInputs =
+    Boolean(normalizedLeaseDocumentMemo) ||
+    Boolean(normalizedSpecialTermsMemo) ||
+    Boolean(normalizedChecklistMemo);
   const propertyId = keccak256(toBytes(normalizedPropertyLabel || 'unknown-property')) as `0x${string}`;
   const tenantValid = isAddress(form.tenant);
   const walletReady = Boolean(address);
@@ -138,6 +150,16 @@ export default function LandlordPanel({
   function handleRegister() {
     if (!address || !canSubmit) return;
 
+    const leaseDocumentHash = hasDocumentInputs
+      ? (keccak256(toBytes(normalizedLeaseDocumentMemo || `${normalizedPropertyLabel}|${normalizedDeposit}|${normalizedDuration}`)) as `0x${string}`)
+      : undefined;
+    const specialTermsHash = normalizedSpecialTermsMemo
+      ? (keccak256(toBytes(normalizedSpecialTermsMemo)) as `0x${string}`)
+      : undefined;
+    const checklistHash = normalizedChecklistMemo
+      ? (keccak256(toBytes(normalizedChecklistMemo)) as `0x${string}`)
+      : undefined;
+
     submittedRef.current = {
       tenant: form.tenant,
       depositKRW: normalizedDeposit,
@@ -149,20 +171,32 @@ export default function LandlordPanel({
 
     onActivity({
       title: '계약 등록 요청을 보냈어요',
-      description: '지갑 승인 후 leaseId가 생성되면 자동으로 다음 단계에 채워집니다.',
+      description: hasDocumentInputs
+        ? '문서 메모 해시와 함께 계약을 등록합니다. 승인 후 leaseId가 생성되면 다음 단계로 이어집니다.'
+        : '지갑 승인 후 leaseId가 생성되면 자동으로 다음 단계에 채워집니다.',
       tone: 'info',
     });
 
     writeContract({
       address: CONTRACT_ADDRESSES.JeonseVault,
       abi: VAULT_ABI,
-      functionName: 'registerLease',
-      args: [
-        form.tenant as `0x${string}`,
-        parseEther(normalizedDeposit),
-        BigInt(normalizedDuration),
-        propertyId,
-      ],
+      functionName: hasDocumentInputs ? 'registerLeaseWithDocuments' : 'registerLease',
+      args: hasDocumentInputs
+        ? [
+            form.tenant as `0x${string}`,
+            parseEther(normalizedDeposit),
+            BigInt(normalizedDuration),
+            propertyId,
+            leaseDocumentHash!,
+            specialTermsHash ?? ZERO_BYTES32,
+            checklistHash ?? ZERO_BYTES32,
+          ]
+        : [
+            form.tenant as `0x${string}`,
+            parseEther(normalizedDeposit),
+            BigInt(normalizedDuration),
+            propertyId,
+          ],
     });
   }
 
@@ -274,6 +308,38 @@ export default function LandlordPanel({
             </Field>
           </div>
 
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <Field label="계약서 메모" helper="원문 대신 요약 메모를 해시로 저장합니다.">
+              <textarea
+                value={form.leaseDocumentMemo}
+                onChange={(event) => setForm((current) => ({ ...current, leaseDocumentMemo: event.target.value }))}
+                placeholder="계약서 핵심 내용, 주소, 보증금, 기간 등"
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
+              />
+            </Field>
+
+            <Field label="특약 메모" helper="특약이 있으면 별도 해시로 같이 남깁니다.">
+              <textarea
+                value={form.specialTermsMemo}
+                onChange={(event) => setForm((current) => ({ ...current, specialTermsMemo: event.target.value }))}
+                placeholder="수리 책임, 반환 조건, 추가 합의 등"
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
+              />
+            </Field>
+
+            <Field label="입주 체크리스트 메모" helper="입주 상태나 사진 정리 메모를 해시로 보관합니다.">
+              <textarea
+                value={form.checklistMemo}
+                onChange={(event) => setForm((current) => ({ ...current, checklistMemo: event.target.value }))}
+                placeholder="하자, 비품, 사진 묶음 설명 등"
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
+              />
+            </Field>
+          </div>
+
           <div className="mt-6 flex flex-wrap gap-3">
             <button
               onClick={handleRegister}
@@ -308,6 +374,7 @@ export default function LandlordPanel({
               <SummaryRow label="예상 보증금" value={formatInputKRW(normalizedDeposit)} />
               <SummaryRow label="계약 기간" value={`${normalizedDuration || '0'}일`} />
               <SummaryRow label="propertyId" value={propertyId.slice(0, 16) + '...'} />
+              <SummaryRow label="문서 해시 등록" value={hasDocumentInputs ? '포함됨' : '이번엔 생략'} />
               <SummaryRow label="다음 단계" value="임차인 승인 및 납입" />
             </div>
           </div>

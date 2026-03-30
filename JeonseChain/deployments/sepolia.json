@@ -1,12 +1,12 @@
 {
   "network": "sepolia",
   "chainId": 11155111,
-  "deployedAt": "2026-03-30T11:39:25.700Z",
+  "deployedAt": "2026-03-30T16:12:37.068Z",
   "deployer": "0x7111C45861f8F96833CddB3c32F069cB0416060B",
   "contracts": {
-    "MockKRW": "0x74Fb8bAd2ACB4D0e7170861C6268A70e88F92ab7",
-    "JeonseOracle": "0x3005dBF4668a4E7680215F8aAB00F69C2E8EFC79",
-    "JeonseVault": "0xe8173cA15259A26d7dAB069CDa2002E142e36225",
-    "HugMultisig": "0xd39081E16054160A42bD8C4Bb39daA9a99560fC9"
+    "MockKRW": "0x61A184Ad0442FcB97f1bFc8F08f70bC0c6b906d2",
+    "JeonseOracle": "0x3993b53929cC0f6804fe8D68e0Eac73becE4a039",
+    "JeonseVault": "0x0Cfef9771e659187f6b9A594EDcfa4c09F7F0fd3",
+    "HugMultisig": "0x9C177428f079822F66009F0f263aCe0754094eb3"
   }
 }

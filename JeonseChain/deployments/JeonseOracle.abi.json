@@ -194,6 +194,61 @@
       {
         "indexed": true,
         "internalType": "bytes32",
+        "name": "propertyId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "seniorDebtRisk",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "auctionRisk",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "recentRightsChange",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "depositToPriceRatioBps",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "repaymentStress",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "repaymentGap",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "dataSourceHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "RiskSignalsUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "role",
         "type": "bytes32"
       },
@@ -278,6 +333,19 @@
   },
   {
     "inputs": [],
+    "name": "DEPOSIT_TO_PRICE_DANGER_BPS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "HUG_ROLE",
     "outputs": [
       {
@@ -352,6 +420,60 @@
     "name": "addOracleNode",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "propertyId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getRiskSignalSummary",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "seniorDebtRisk",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "auctionRisk",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "recentRightsChange",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "depositToPriceRatioBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "repaymentStress",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "repaymentGap",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "updatedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "dataSourceHash",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -477,6 +599,60 @@
       {
         "internalType": "uint256",
         "name": "riskScore",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "dataSourceHash",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "propertyRiskSignals",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "seniorDebtRisk",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "auctionRisk",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "recentRightsChange",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "depositToPriceRatioBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "repaymentStress",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "repaymentGap",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "updatedAt",
         "type": "uint256"
       },
       {
@@ -621,6 +797,54 @@
       }
     ],
     "name": "updateRiskScore",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "propertyId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bool",
+        "name": "seniorDebtRisk",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "auctionRisk",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "recentRightsChange",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "depositToPriceRatioBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "repaymentStress",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "repaymentGap",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "dataSourceHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "updateRiskSignals",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

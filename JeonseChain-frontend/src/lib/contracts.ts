@@ -3,16 +3,16 @@ export const NETWORK_LABEL = 'Sepolia';
 export const CHAIN_ID = 11155111;
 
 export const DEPLOYMENT_META = {
-  deployedAt: '2026-03-30T11:39:25.700Z',
+  deployedAt: '2026-03-30T16:12:37.068Z',
   deployer: '0x7111C45861f8F96833CddB3c32F069cB0416060B',
 } as const;
 
 // 현재 체크인된 Sepolia 배포 주소 (deployments/sepolia.json 기준).
 export const CONTRACT_ADDRESSES = {
-  MockKRW:      '0x74Fb8bAd2ACB4D0e7170861C6268A70e88F92ab7',
-  JeonseOracle: '0x3005dBF4668a4E7680215F8aAB00F69C2E8EFC79',
-  JeonseVault:  '0xe8173cA15259A26d7dAB069CDa2002E142e36225',
-  HugMultisig:  '0xd39081E16054160A42bD8C4Bb39daA9a99560fC9',
+  MockKRW:      '0x61A184Ad0442FcB97f1bFc8F08f70bC0c6b906d2',
+  JeonseOracle: '0x3993b53929cC0f6804fe8D68e0Eac73becE4a039',
+  JeonseVault:  '0x0Cfef9771e659187f6b9A594EDcfa4c09F7F0fd3',
+  HugMultisig:  '0x9C177428f079822F66009F0f263aCe0754094eb3',
 } as const;
 
 export const VAULT_ABI = [
@@ -26,6 +26,33 @@ export const VAULT_ABI = [
     ],
     "name": "registerLease",
     "outputs": [{ "name": "leaseId", "type": "bytes32" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "tenant", "type": "address" },
+      { "name": "depositAmount", "type": "uint256" },
+      { "name": "durationDays", "type": "uint256" },
+      { "name": "propertyId", "type": "bytes32" },
+      { "name": "leaseDocumentHash", "type": "bytes32" },
+      { "name": "specialTermsHash", "type": "bytes32" },
+      { "name": "checklistHash", "type": "bytes32" }
+    ],
+    "name": "registerLeaseWithDocuments",
+    "outputs": [{ "name": "leaseId", "type": "bytes32" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "leaseId", "type": "bytes32" },
+      { "name": "leaseDocumentHash", "type": "bytes32" },
+      { "name": "specialTermsHash", "type": "bytes32" },
+      { "name": "checklistHash", "type": "bytes32" }
+    ],
+    "name": "attachLeaseDocuments",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -206,6 +233,33 @@ export const VAULT_ABI = [
     "name": "getSettlementCategoryCap",
     "outputs": [{ "name": "", "type": "uint256" }],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "leaseId", "type": "bytes32" }],
+    "name": "getLeaseDocuments",
+    "outputs": [
+      { "name": "leaseDocumentHash", "type": "bytes32" },
+      { "name": "specialTermsHash", "type": "bytes32" },
+      { "name": "checklistHash", "type": "bytes32" },
+      { "name": "recordedAt", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "leaseId", "type": "bytes32" }],
+    "name": "getLeaseTrustRecord",
+    "outputs": [
+      { "name": "documentsAttached", "type": "bool" },
+      { "name": "normalCompletion", "type": "bool" },
+      { "name": "depositReturnedOnTime", "type": "bool" },
+      { "name": "settlementDisputeOpened", "type": "bool" },
+      { "name": "responseSubmittedWithinDeadline", "type": "bool" },
+      { "name": "completedAt", "type": "uint256" },
+      { "name": "returnedAt", "type": "uint256" }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   // ── 모의 수익 (Mock Yield) ──────────────────────────────────────────
@@ -634,12 +688,44 @@ export const ORACLE_ABI = [
     "type": "function"
   },
   {
+    "inputs": [{ "name": "", "type": "bytes32" }],
+    "name": "propertyRiskSignals",
+    "outputs": [
+      { "name": "seniorDebtRisk", "type": "bool" },
+      { "name": "auctionRisk", "type": "bool" },
+      { "name": "recentRightsChange", "type": "bool" },
+      { "name": "depositToPriceRatioBps", "type": "uint256" },
+      { "name": "repaymentStress", "type": "bool" },
+      { "name": "repaymentGap", "type": "uint256" },
+      { "name": "updatedAt", "type": "uint256" },
+      { "name": "dataSourceHash", "type": "bytes32" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       { "name": "propertyId",    "type": "bytes32" },
       { "name": "riskScore",     "type": "uint256" },
       { "name": "dataSourceHash","type": "bytes32" }
     ],
     "name": "updateRiskScore",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "propertyId", "type": "bytes32" },
+      { "name": "seniorDebtRisk", "type": "bool" },
+      { "name": "auctionRisk", "type": "bool" },
+      { "name": "recentRightsChange", "type": "bool" },
+      { "name": "depositToPriceRatioBps", "type": "uint256" },
+      { "name": "repaymentStress", "type": "bool" },
+      { "name": "repaymentGap", "type": "uint256" },
+      { "name": "dataSourceHash", "type": "bytes32" }
+    ],
+    "name": "updateRiskSignals",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -658,6 +744,22 @@ export const ORACLE_ABI = [
     "type": "function"
   },
   {
+    "inputs": [{ "name": "propertyId", "type": "bytes32" }],
+    "name": "getRiskSignalSummary",
+    "outputs": [
+      { "name": "seniorDebtRisk", "type": "bool" },
+      { "name": "auctionRisk", "type": "bool" },
+      { "name": "recentRightsChange", "type": "bool" },
+      { "name": "depositToPriceRatioBps", "type": "uint256" },
+      { "name": "repaymentStress", "type": "bool" },
+      { "name": "repaymentGap", "type": "uint256" },
+      { "name": "updatedAt", "type": "uint256" },
+      { "name": "dataSourceHash", "type": "bytes32" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "anonymous": false,
     "inputs": [
       { "indexed": true,  "name": "propertyId",    "type": "bytes32" },
@@ -665,6 +767,21 @@ export const ORACLE_ABI = [
       { "indexed": false, "name": "dataSourceHash","type": "bytes32" }
     ],
     "name": "RiskScoreUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true,  "name": "propertyId", "type": "bytes32" },
+      { "indexed": false, "name": "seniorDebtRisk", "type": "bool" },
+      { "indexed": false, "name": "auctionRisk", "type": "bool" },
+      { "indexed": false, "name": "recentRightsChange", "type": "bool" },
+      { "indexed": false, "name": "depositToPriceRatioBps", "type": "uint256" },
+      { "indexed": false, "name": "repaymentStress", "type": "bool" },
+      { "indexed": false, "name": "repaymentGap", "type": "uint256" },
+      { "indexed": false, "name": "dataSourceHash", "type": "bytes32" }
+    ],
+    "name": "RiskSignalsUpdated",
     "type": "event"
   }
 ] as const;

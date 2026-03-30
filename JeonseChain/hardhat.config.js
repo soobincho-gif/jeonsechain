@@ -4,7 +4,11 @@ import "dotenv/config";
 export default {
   solidity: {
     version: "0.8.24",
-    settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: "cancun" }
+    settings: {
+      // MVP 단계에서는 실행 가스보다 배포 가능한 bytecode 크기가 더 중요하다.
+      optimizer: { enabled: true, runs: 1 },
+      evmVersion: "cancun"
+    }
   },
   networks: {
     hardhat: { chainId: 31337 },

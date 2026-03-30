@@ -31,6 +31,17 @@ contract JeonseOracle is AccessControl {
         bytes32 dataSourceHash;     // off-chain 데이터 번들 해시 (감사용)
     }
 
+    struct PropertyRiskSignals {
+        bool    seniorDebtRisk;         // 선순위채권 / 근저당 존재 여부
+        bool    auctionRisk;            // 압류·경매 관련 강한 플래그
+        bool    recentRightsChange;     // 최근 권리변동 여부
+        uint256 depositToPriceRatioBps; // 전세보증금 / 매매가 비율 (bps)
+        bool    repaymentStress;        // 반환 재원 부족 여부
+        uint256 repaymentGap;           // 반환 재원 부족 금액 (원, 18 decimals)
+        uint256 updatedAt;              // 마지막 신호 반영 시각
+        bytes32 dataSourceHash;         // 동일 bundle hash
+    }
+
     // ── 이상치 탐지용 이동 통계 (Welford's online algorithm) ─────────
     struct OracleStat {
         uint256 count;
@@ -40,6 +51,8 @@ contract JeonseOracle is AccessControl {
 
     // propertyId => 데이터
     mapping(bytes32 => PropertyData) public properties;
+    // propertyId => 구조화된 위험 신호
+    mapping(bytes32 => PropertyRiskSignals) public propertyRiskSignals;
     // propertyId => 공시가격 이동통계
     mapping(bytes32 => OracleStat)   private priceStats;
 
@@ -47,6 +60,8 @@ contract JeonseOracle is AccessControl {
     int256  public constant ZSCORE_THRESHOLD          = 3_000_000;
     // LTV 위험 임계: 80% (선순위채권 / 공시가격)
     uint256 public constant LTV_DANGER_BPS            = 8000;
+    // 전세가율 위험 임계: 85%
+    uint256 public constant DEPOSIT_TO_PRICE_DANGER_BPS = 8500;
     // 위험 점수 임계: 70점 이상 → HUG 개입 요청
     uint256 public constant RISK_SCORE_DANGER_THRESHOLD = 70;
 
@@ -61,6 +76,16 @@ contract JeonseOracle is AccessControl {
     event RiskScoreUpdated(
         bytes32 indexed propertyId,
         uint256 riskScore,
+        bytes32 dataSourceHash
+    );
+    event RiskSignalsUpdated(
+        bytes32 indexed propertyId,
+        bool seniorDebtRisk,
+        bool auctionRisk,
+        bool recentRightsChange,
+        uint256 depositToPriceRatioBps,
+        bool repaymentStress,
+        uint256 repaymentGap,
         bytes32 dataSourceHash
     );
 
@@ -195,6 +220,54 @@ contract JeonseOracle is AccessControl {
         }
     }
 
+    /**
+     * @notice 위험 점수를 구성하는 핵심 신호들을 구조화해 저장.
+     * @dev 프론트엔드의 explainable UI, 감사 리포트, 추후 정책 엔진에서 재사용.
+     */
+    function updateRiskSignals(
+        bytes32 propertyId,
+        bool seniorDebtRisk,
+        bool auctionRisk,
+        bool recentRightsChange,
+        uint256 depositToPriceRatioBps,
+        bool repaymentStress,
+        uint256 repaymentGap,
+        bytes32 dataSourceHash
+    ) external onlyRole(ORACLE_ROLE) {
+        require(dataSourceHash != bytes32(0), "Oracle: data hash required");
+
+        PropertyRiskSignals storage signals = propertyRiskSignals[propertyId];
+        signals.seniorDebtRisk = seniorDebtRisk;
+        signals.auctionRisk = auctionRisk;
+        signals.recentRightsChange = recentRightsChange;
+        signals.depositToPriceRatioBps = depositToPriceRatioBps;
+        signals.repaymentStress = repaymentStress;
+        signals.repaymentGap = repaymentGap;
+        signals.updatedAt = block.timestamp;
+        signals.dataSourceHash = dataSourceHash;
+
+        properties[propertyId].dataSourceHash = dataSourceHash;
+        properties[propertyId].updatedAt = block.timestamp;
+
+        emit RiskSignalsUpdated(
+            propertyId,
+            seniorDebtRisk,
+            auctionRisk,
+            recentRightsChange,
+            depositToPriceRatioBps,
+            repaymentStress,
+            repaymentGap,
+            dataSourceHash
+        );
+
+        if (auctionRisk || repaymentStress || depositToPriceRatioBps >= DEPOSIT_TO_PRICE_DANGER_BPS) {
+            emit HugInterventionRequested(
+                propertyId,
+                "Structured risk signals indicate elevated jeonse return stress"
+            );
+        }
+    }
+
     function removeOracleNode(address node) external onlyRole(DEFAULT_ADMIN_ROLE) {
         _revokeRole(ORACLE_ROLE, node);
     }
@@ -202,13 +275,44 @@ contract JeonseOracle is AccessControl {
     // ── 조회 헬퍼 ────────────────────────────────────────────────────
     function isPropertyDangerous(bytes32 propertyId) external view returns (bool) {
         PropertyData memory prop = properties[propertyId];
+        PropertyRiskSignals memory signals = propertyRiskSignals[propertyId];
         if (prop.circuitBreakerOn) return true;
         if (prop.auctionStarted)   return true;
+        if (signals.auctionRisk)   return true;
+        if (signals.repaymentStress) return true;
+        if (signals.depositToPriceRatioBps >= DEPOSIT_TO_PRICE_DANGER_BPS) return true;
         if (prop.officialPrice > 0) {
             uint256 ltvBps = (prop.seniorDebtTotal * 10000) / prop.officialPrice;
             if (ltvBps > LTV_DANGER_BPS) return true;
         }
         return false;
+    }
+
+    function getRiskSignalSummary(bytes32 propertyId)
+        external
+        view
+        returns (
+            bool seniorDebtRisk,
+            bool auctionRisk,
+            bool recentRightsChange,
+            uint256 depositToPriceRatioBps,
+            bool repaymentStress,
+            uint256 repaymentGap,
+            uint256 updatedAt,
+            bytes32 dataSourceHash
+        )
+    {
+        PropertyRiskSignals memory signals = propertyRiskSignals[propertyId];
+        return (
+            signals.seniorDebtRisk,
+            signals.auctionRisk,
+            signals.recentRightsChange,
+            signals.depositToPriceRatioBps,
+            signals.repaymentStress,
+            signals.repaymentGap,
+            signals.updatedAt,
+            signals.dataSourceHash
+        );
     }
 
     // ── 정수 제곱근 (Babylonian method) ──────────────────────────────

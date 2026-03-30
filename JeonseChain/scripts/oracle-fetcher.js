@@ -464,6 +464,26 @@ export function calculateRiskScore(data) {
   return { score: Math.min(score, 100), log };
 }
 
+export function deriveRiskSignals(data) {
+  const depositToPriceRatioBps =
+    data.avgSalePrice > 0 && data.avgRentDeposit > 0
+      ? Math.round((data.avgRentDeposit * 10000) / data.avgSalePrice)
+      : 0;
+  const repaymentGapKRW = Math.max(
+    (data.seniorDebtKRW ?? 0) + (data.avgRentDeposit ?? 0) - (data.avgSalePrice ?? 0),
+    0
+  );
+
+  return {
+    seniorDebtRisk: (data.seniorDebtKRW ?? 0) > 0,
+    auctionRisk: Boolean(data.auctionStarted),
+    recentRightsChange: Boolean(data.newMortgageSet),
+    depositToPriceRatioBps,
+    repaymentStress: repaymentGapKRW > 0,
+    repaymentGapKRW,
+  };
+}
+
 function deepSort(value) {
   if (Array.isArray(value)) {
     return value.map((item) => deepSort(item));
@@ -493,6 +513,7 @@ function formatEok(amount) {
 
 function buildOracleBundle(job, data, riskResult) {
   const fetchedAt = new Date().toISOString();
+  const signals = deriveRiskSignals(data);
   const bundle = {
     schemaVersion: 2,
     fetchedAt,
@@ -515,6 +536,7 @@ function buildOracleBundle(job, data, riskResult) {
       score: riskResult.score,
       log: riskResult.log,
     },
+    signals,
     benchmark: data.benchmark ?? null,
     attestation: {
       seniorDebtSource: job.seniorDebtKRW != null ? 'MANUAL_OVERRIDE' : 'DEFAULT_ZERO',
@@ -581,11 +603,15 @@ async function updateOnChain(bundle, opts) {
   await tx1.wait();
   console.log(`  ✓ updatePropertyData tx: ${tx1.hash}`);
 
+  let updateRiskSignalsTx = null;
+
   if (typeof oracle.updateRiskScore !== 'function') {
     console.warn('  ⚠ updateRiskScore ABI/배포 미활성화 → 기본 부동산 데이터만 업데이트했습니다.');
     return {
+      oracleAddress: deployment.contracts.JeonseOracle,
       updatePropertyDataTx: tx1.hash,
       updateRiskScoreTx: null,
+      updateRiskSignalsTx: null,
     };
   }
 
@@ -603,10 +629,32 @@ async function updateOnChain(bundle, opts) {
     await tx2.wait();
     console.log(`  ✓ updateRiskScore tx: ${tx2.hash}`);
 
+    if (typeof oracle.updateRiskSignals === 'function') {
+      const tx3Data = oracleInterface.encodeFunctionData('updateRiskSignals', [
+        bundle.propertyId,
+        bundle.signals.seniorDebtRisk,
+        bundle.signals.auctionRisk,
+        bundle.signals.recentRightsChange,
+        BigInt(bundle.signals.depositToPriceRatioBps),
+        bundle.signals.repaymentStress,
+        ethers.parseEther(String(Math.trunc(bundle.signals.repaymentGapKRW))),
+        bundle.bundleHash,
+      ]);
+      const tx3 = await signer.sendTransaction({
+        to: deployment.contracts.JeonseOracle,
+        data: tx3Data,
+        gasLimit: 180000n,
+      });
+      await tx3.wait();
+      updateRiskSignalsTx = tx3.hash;
+      console.log(`  ✓ updateRiskSignals tx: ${tx3.hash}`);
+    }
+
     return {
       oracleAddress: deployment.contracts.JeonseOracle,
       updatePropertyDataTx: tx1.hash,
       updateRiskScoreTx: tx2.hash,
+      updateRiskSignalsTx,
       updatedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -616,6 +664,7 @@ async function updateOnChain(bundle, opts) {
       oracleAddress: deployment.contracts.JeonseOracle,
       updatePropertyDataTx: tx1.hash,
       updateRiskScoreTx: null,
+      updateRiskSignalsTx: null,
       updatedAt: new Date().toISOString(),
     };
   }
@@ -670,6 +719,20 @@ function buildOracleTimeline(bundle, onchainResult, reportPath) {
       timestamp: onchainResult.updatedAt ?? new Date().toISOString(),
       txHash: onchainResult.updateRiskScoreTx,
       tone: 'success',
+    });
+  }
+
+  if (onchainResult?.updateRiskSignalsTx) {
+    timeline.push({
+      kind: 'risk-signals',
+      title: '구조화된 위험 신호 반영',
+      description:
+        `선순위채권=${bundle.signals.seniorDebtRisk ? '있음' : '없음'}, ` +
+        `권리변동=${bundle.signals.recentRightsChange ? '있음' : '없음'}, ` +
+        `전세가율=${(bundle.signals.depositToPriceRatioBps / 100).toFixed(1)}%를 기록했습니다.`,
+      timestamp: onchainResult.updatedAt ?? bundle.fetchedAt,
+      txHash: onchainResult.updateRiskSignalsTx,
+      tone: bundle.signals.repaymentStress || bundle.signals.auctionRisk ? 'warning' : 'success',
     });
   }
 

@@ -124,6 +124,31 @@ describe("JeonseVault settlement flow", function () {
     expect(lease.sharesIssued).to.equal(0n);
   });
 
+  it("lets the landlord attach contract document hashes on chain", async () => {
+    const leaseDocHash = ethers.keccak256(ethers.toUtf8Bytes("lease-pdf-v1"));
+    const specialTermsHash = ethers.keccak256(ethers.toUtf8Bytes("special-terms-v1"));
+    const checklistHash = ethers.keccak256(ethers.toUtf8Bytes("move-in-checklist-v1"));
+
+    await expect(
+      vault.connect(landlord).attachLeaseDocuments(
+        leaseId,
+        leaseDocHash,
+        specialTermsHash,
+        checklistHash
+      )
+    )
+      .to.emit(vault, "LeaseDocumentsAttached")
+      .withArgs(leaseId, leaseDocHash, specialTermsHash, checklistHash);
+
+    const docs = await vault.getLeaseDocuments(leaseId);
+    const trust = await vault.getLeaseTrustRecord(leaseId);
+
+    expect(docs[0]).to.equal(leaseDocHash);
+    expect(docs[1]).to.equal(specialTermsHash);
+    expect(docs[2]).to.equal(checklistHash);
+    expect(trust[0]).to.equal(true);
+  });
+
   it("move-out claim releases only the undisputed amount and holds the disputed slice", async () => {
     await activateLease();
     await expireLease();
@@ -188,6 +213,20 @@ describe("JeonseVault settlement flow", function () {
     expect(settlement[7]).to.equal(acceptedAmount);
   });
 
+  it("records completion facts when the deposit is returned on time", async () => {
+    await activateLease();
+    await expireLease();
+
+    await vault.connect(attacker).executeReturn(leaseId);
+
+    const trust = await vault.getLeaseTrustRecord(leaseId);
+
+    expect(trust[1]).to.equal(true);
+    expect(trust[2]).to.equal(true);
+    expect(trust[5]).to.be.gt(0n);
+    expect(trust[6]).to.be.gt(0n);
+  });
+
   it("if the tenant does not respond in time, only the held amount is released to the landlord", async () => {
     await activateLease();
     await expireLease();
@@ -247,11 +286,15 @@ describe("JeonseVault settlement flow", function () {
     const landlordAfter = await krw.balanceOf(landlord.address);
     const tenantAfter = await krw.balanceOf(tenant.address);
     const settlement = await vault.getSettlementInfo(leaseId);
+    const trust = await vault.getLeaseTrustRecord(leaseId);
 
     expect(landlordAfter - landlordBefore).to.equal(landlordAward);
     expect(tenantAfter - tenantBefore).to.equal(claimAmount - landlordAward);
     expect(settlement[0]).to.equal(SettlementStatus.RESOLVED);
     expect(settlement[7]).to.equal(landlordAward);
+    expect(trust[3]).to.equal(true);
+    expect(trust[4]).to.equal(true);
+    expect(trust[1]).to.equal(false);
   });
 
   it("claims above the category cap are rejected even before the overall hold cap", async () => {

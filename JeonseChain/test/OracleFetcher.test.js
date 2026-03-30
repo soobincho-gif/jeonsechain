@@ -3,6 +3,7 @@ import {
   buildMonthSequence,
   calculateRiskScore,
   computeBundleHash,
+  deriveRiskSignals,
   derivePropertyIdFromAddress,
   pickLatestEcosPoint,
   stableStringify,
@@ -38,6 +39,23 @@ describe("oracle-fetcher helpers", function () {
     expect(log.join(" ")).to.include("LTV");
     expect(log.join(" ")).to.include("경매 개시");
     expect(log.join(" ")).to.include("신규 근저당");
+  });
+
+  it("derives explainable structured risk signals from market data", async () => {
+    const signals = deriveRiskSignals({
+      seniorDebtKRW: 180000000,
+      auctionStarted: false,
+      newMortgageSet: true,
+      avgRentDeposit: 330000000,
+      avgSalePrice: 360000000,
+    });
+
+    expect(signals.seniorDebtRisk).to.equal(true);
+    expect(signals.auctionRisk).to.equal(false);
+    expect(signals.recentRightsChange).to.equal(true);
+    expect(signals.depositToPriceRatioBps).to.equal(9167);
+    expect(signals.repaymentStress).to.equal(true);
+    expect(signals.repaymentGapKRW).to.equal(150000000);
   });
 
   it("computes a stable bundle hash for the same logical payload", async () => {

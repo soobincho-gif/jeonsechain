@@ -156,6 +156,47 @@ describe("JeonseVault v2 feature set", function () {
     expect(property.dataSourceHash).to.equal(dataSourceHash);
   });
 
+  it("stores structured oracle risk signals on chain", async () => {
+    const dataSourceHash = ethers.keccak256(
+      ethers.toUtf8Bytes("risk-signal-bundle-202603")
+    );
+
+    await expect(
+      oracle.connect(oracleNode).updateRiskSignals(
+        PROPERTY_ID,
+        true,
+        false,
+        true,
+        8750,
+        true,
+        ethers.parseEther("25000000"),
+        dataSourceHash
+      )
+    )
+      .to.emit(oracle, "RiskSignalsUpdated")
+      .withArgs(
+        PROPERTY_ID,
+        true,
+        false,
+        true,
+        8750,
+        true,
+        ethers.parseEther("25000000"),
+        dataSourceHash
+      );
+
+    const signals = await oracle.propertyRiskSignals(PROPERTY_ID);
+
+    expect(signals.seniorDebtRisk).to.equal(true);
+    expect(signals.auctionRisk).to.equal(false);
+    expect(signals.recentRightsChange).to.equal(true);
+    expect(signals.depositToPriceRatioBps).to.equal(8750n);
+    expect(signals.repaymentStress).to.equal(true);
+    expect(signals.repaymentGap).to.equal(ethers.parseEther("25000000"));
+    expect(signals.dataSourceHash).to.equal(dataSourceHash);
+    expect(await oracle.isPropertyDangerous(PROPERTY_ID)).to.equal(true);
+  });
+
   it("executes a vault pause action through HugMultisig quorum", async () => {
     const pauseCallData = vault.interface.encodeFunctionData("pause");
     const multisigAddress = await multisig.getAddress();

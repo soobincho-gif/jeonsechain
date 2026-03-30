@@ -83,6 +83,23 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         bool    marginCallDue;
     }
 
+    struct LeaseDocumentRecord {
+        bytes32 leaseDocumentHash;
+        bytes32 specialTermsHash;
+        bytes32 checklistHash;
+        uint256 recordedAt;
+    }
+
+    struct LeaseTrustRecord {
+        bool documentsAttached;
+        bool normalCompletion;
+        bool depositReturnedOnTime;
+        bool settlementDisputeOpened;
+        bool responseSubmittedWithinDeadline;
+        uint256 completedAt;
+        uint256 returnedAt;
+    }
+
     struct SettlementRecord {
         SettlementStatus status;
         SettlementCategory category;
@@ -108,6 +125,8 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     }
 
     mapping(bytes32 => LeaseContract) public leases;
+    mapping(bytes32 => LeaseDocumentRecord) public leaseDocuments;
+    mapping(bytes32 => LeaseTrustRecord) public leaseTrustRecords;
     mapping(bytes32 => SettlementRecord) public settlements;
     mapping(bytes32 => LeaseChangeRequest) public leaseChangeRequests;
     mapping(address => bool)          public frozenTokens;
@@ -132,11 +151,18 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     uint256 public constant LEASE_CHANGE_RESPONSE_WINDOW = 72 hours;
     uint256 public constant MIN_EXTENSION_DAYS = 30;
     uint256 public constant MAX_EXTENSION_DAYS = 730;
+    uint256 public constant ON_TIME_RETURN_WINDOW = 7 days;
 
     event Paused(address indexed by);
     event Unpaused(address indexed by);
     event EmergencyReturn(bytes32 indexed leaseId, address indexed tenant, uint256 amount);
     event LeaseRegistered(bytes32 indexed leaseId, address tenant, address landlord, uint256 amount);
+    event LeaseDocumentsAttached(
+        bytes32 indexed leaseId,
+        bytes32 leaseDocumentHash,
+        bytes32 specialTermsHash,
+        bytes32 checklistHash
+    );
     event DepositReceived(bytes32 indexed leaseId, uint256 amount, uint256 sharesIssued);
     event DangerStateActivated(bytes32 indexed leaseId, string reason);
     event TokensFrozen(address indexed landlord, bytes32 leaseId);
@@ -187,6 +213,28 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         LeaseChangeType indexed changeType,
         address indexed canceller
     );
+    event LeaseCompleted(
+        bytes32 indexed leaseId,
+        address indexed landlord,
+        address indexed tenant,
+        bool disputeFree,
+        uint256 completedAt
+    );
+    event DepositReturnedOnTime(
+        bytes32 indexed leaseId,
+        address indexed tenant,
+        uint256 returnedAt
+    );
+    event ResponseSubmittedWithinDeadline(
+        bytes32 indexed leaseId,
+        address indexed tenant,
+        uint256 submittedAt
+    );
+    event SettlementDisputeOpened(
+        bytes32 indexed leaseId,
+        address indexed tenant,
+        bytes32 responseHash
+    );
 
     modifier whenNotPaused() {
         require(!paused, "Vault: paused");
@@ -235,6 +283,38 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         uint256 durationDays,
         bytes32 propertyId
     ) external whenNotPaused returns (bytes32 leaseId) {
+        leaseId = _registerLease(msg.sender, tenant, depositAmount, durationDays, propertyId);
+    }
+
+    function registerLeaseWithDocuments(
+        address tenant,
+        uint256 depositAmount,
+        uint256 durationDays,
+        bytes32 propertyId,
+        bytes32 leaseDocumentHash,
+        bytes32 specialTermsHash,
+        bytes32 checklistHash
+    ) external whenNotPaused returns (bytes32 leaseId) {
+        leaseId = _registerLease(msg.sender, tenant, depositAmount, durationDays, propertyId);
+        _attachLeaseDocuments(leaseId, msg.sender, leaseDocumentHash, specialTermsHash, checklistHash);
+    }
+
+    function attachLeaseDocuments(
+        bytes32 leaseId,
+        bytes32 leaseDocumentHash,
+        bytes32 specialTermsHash,
+        bytes32 checklistHash
+    ) external {
+        _attachLeaseDocuments(leaseId, msg.sender, leaseDocumentHash, specialTermsHash, checklistHash);
+    }
+
+    function _registerLease(
+        address landlord,
+        address tenant,
+        uint256 depositAmount,
+        uint256 durationDays,
+        bytes32 propertyId
+    ) internal returns (bytes32 leaseId) {
         require(tenant != address(0),  "Vault: invalid tenant");
         require(depositAmount > 0,     "Vault: deposit must be > 0");
         require(durationDays >= 365,   "Vault: minimum 1 year");
@@ -243,13 +323,13 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
             "Vault: property failed LTV pre-screening");
 
         leaseId = keccak256(abi.encodePacked(
-            msg.sender, tenant, depositAmount, block.timestamp
+            landlord, tenant, depositAmount, block.timestamp
         ));
         require(leases[leaseId].tenant == address(0), "Vault: lease exists");
 
         leases[leaseId] = LeaseContract({
             tenant:        tenant,
-            landlord:      msg.sender,
+            landlord:      landlord,
             depositAmount: depositAmount,
             startTime:     0,
             endTime:       block.timestamp + (durationDays * 1 days),
@@ -259,7 +339,7 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
             marginCallDue: false
         });
 
-        emit LeaseRegistered(leaseId, tenant, msg.sender, depositAmount);
+        emit LeaseRegistered(leaseId, tenant, landlord, depositAmount);
         emit HugBridgeActivated(leaseId, depositAmount);
     }
 
@@ -592,6 +672,8 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         require(responseHash != bytes32(0), "Vault: response proof required");
 
         settlement.tenantResponseHash = responseHash;
+        leaseTrustRecords[leaseId].responseSubmittedWithinDeadline = true;
+        emit ResponseSubmittedWithinDeadline(leaseId, msg.sender, block.timestamp);
 
         if (response == TenantResponse.ACCEPT_FULL) {
             require(acceptedAmount == settlement.claimedAmount, "Vault: full amount required");
@@ -612,6 +694,8 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
 
         require(acceptedAmount == 0, "Vault: disputed amount must be 0");
         settlement.status = SettlementStatus.TENANT_DISPUTED;
+        leaseTrustRecords[leaseId].settlementDisputeOpened = true;
+        emit SettlementDisputeOpened(leaseId, msg.sender, responseHash);
 
         emit SettlementResponded(leaseId, response, acceptedAmount, responseHash);
     }
@@ -821,6 +905,50 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         return UTILITIES_CAP;
     }
 
+    function getLeaseDocuments(bytes32 leaseId)
+        external
+        view
+        returns (
+            bytes32 leaseDocumentHash,
+            bytes32 specialTermsHash,
+            bytes32 checklistHash,
+            uint256 recordedAt
+        )
+    {
+        LeaseDocumentRecord memory record = leaseDocuments[leaseId];
+        return (
+            record.leaseDocumentHash,
+            record.specialTermsHash,
+            record.checklistHash,
+            record.recordedAt
+        );
+    }
+
+    function getLeaseTrustRecord(bytes32 leaseId)
+        external
+        view
+        returns (
+            bool documentsAttached,
+            bool normalCompletion,
+            bool depositReturnedOnTime,
+            bool settlementDisputeOpened,
+            bool responseSubmittedWithinDeadline,
+            uint256 completedAt,
+            uint256 returnedAt
+        )
+    {
+        LeaseTrustRecord memory record = leaseTrustRecords[leaseId];
+        return (
+            record.documentsAttached,
+            record.normalCompletion,
+            record.depositReturnedOnTime,
+            record.settlementDisputeOpened,
+            record.responseSubmittedWithinDeadline,
+            record.completedAt,
+            record.returnedAt
+        );
+    }
+
     function _currentLeaseAssets(LeaseContract storage lease) internal view returns (uint256) {
         return convertToAssets(lease.sharesIssued);
     }
@@ -834,7 +962,9 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     }
 
     function _returnEntireDeposit(bytes32 leaseId, LeaseContract storage lease) internal {
+        ContractState previousState = lease.state;
         uint256 assets = _currentLeaseAssets(lease);
+        LeaseTrustRecord storage trustRecord = leaseTrustRecords[leaseId];
 
         lease.state = ContractState.RETURNED;
         if (frozenTokens[lease.landlord]) {
@@ -845,7 +975,24 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
         _burnLeaseShares(lease);
         IERC20(asset()).safeTransfer(lease.tenant, assets);
 
+        trustRecord.completedAt = block.timestamp;
+        trustRecord.returnedAt = block.timestamp;
+        trustRecord.normalCompletion =
+            previousState != ContractState.DANGER &&
+            previousState != ContractState.DISPUTED;
+        if (block.timestamp <= lease.endTime + ON_TIME_RETURN_WINDOW) {
+            trustRecord.depositReturnedOnTime = true;
+            emit DepositReturnedOnTime(leaseId, lease.tenant, block.timestamp);
+        }
+
         emit DepositReturned(leaseId, lease.tenant, assets);
+        emit LeaseCompleted(
+            leaseId,
+            lease.landlord,
+            lease.tenant,
+            trustRecord.normalCompletion,
+            block.timestamp
+        );
     }
 
     function _finalizeSettlement(
@@ -855,6 +1002,8 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
     ) internal {
         LeaseContract storage lease = leases[leaseId];
         SettlementRecord storage settlement = settlements[leaseId];
+        LeaseTrustRecord storage trustRecord = leaseTrustRecords[leaseId];
+        SettlementStatus previousStatus = settlement.status;
 
         require(landlordAmount <= settlement.heldAmount, "Vault: invalid landlord amount");
 
@@ -878,7 +1027,51 @@ contract JeonseVault is ERC4626, AccessControl, ReentrancyGuard {
             IERC20(asset()).safeTransfer(lease.tenant, tenantAmount);
         }
 
+        trustRecord.completedAt = block.timestamp;
+        trustRecord.returnedAt = block.timestamp;
+        trustRecord.normalCompletion = previousStatus != SettlementStatus.TENANT_DISPUTED;
+        if (block.timestamp <= lease.endTime + ON_TIME_RETURN_WINDOW) {
+            trustRecord.depositReturnedOnTime = true;
+            emit DepositReturnedOnTime(leaseId, lease.tenant, block.timestamp);
+        }
+
         emit SettlementResolved(leaseId, landlordAmount, tenantAmount, resolutionHash);
+        emit LeaseCompleted(
+            leaseId,
+            lease.landlord,
+            lease.tenant,
+            trustRecord.normalCompletion,
+            block.timestamp
+        );
+    }
+
+    function _attachLeaseDocuments(
+        bytes32 leaseId,
+        address caller,
+        bytes32 leaseDocumentHash,
+        bytes32 specialTermsHash,
+        bytes32 checklistHash
+    ) internal {
+        LeaseContract storage lease = leases[leaseId];
+        require(lease.landlord != address(0), "Vault: unknown lease");
+        require(caller == lease.landlord, "Vault: not landlord");
+        require(lease.state != ContractState.RETURNED, "Vault: already closed");
+        require(leaseDocumentHash != bytes32(0), "Vault: lease document required");
+
+        leaseDocuments[leaseId] = LeaseDocumentRecord({
+            leaseDocumentHash: leaseDocumentHash,
+            specialTermsHash: specialTermsHash,
+            checklistHash: checklistHash,
+            recordedAt: block.timestamp
+        });
+        leaseTrustRecords[leaseId].documentsAttached = true;
+
+        emit LeaseDocumentsAttached(
+            leaseId,
+            leaseDocumentHash,
+            specialTermsHash,
+            checklistHash
+        );
     }
 
     function _clearExpiredLeaseChangeIfNeeded(bytes32 leaseId) internal {
