@@ -61,6 +61,14 @@ export default function OracleTrustPanel({
     () => [...(snapshot?.history ?? [])].sort((a, b) => String(a.fetchedAt).localeCompare(String(b.fetchedAt))),
     [snapshot?.history],
   );
+  const riskSignals = useMemo(
+    () => (summary ? buildRiskSignals(summary) : []),
+    [summary],
+  );
+  const easySummary = useMemo(
+    () => (summary ? easyRiskSummary(summary.risk.score, riskSignals) : null),
+    [summary, riskSignals],
+  );
 
   return (
     <>
@@ -129,9 +137,42 @@ export default function OracleTrustPanel({
                   <MetricChip label="수동 검토" value={`${attestationCount}건`} helper="attestation 포함 수" />
                 </div>
 
+                {easySummary ? (
+                  <div className="mt-5 rounded-[22px] border border-white/10 bg-slate-950/45 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-white">
+                          {detailMode ? 'Easy-language risk summary' : '왜 주의 / 위험으로 보나요?'}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-200">{easySummary.summary}</p>
+                      </div>
+                      <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${signalBadgeClass(easySummary.tone)}`}>
+                        {easySummary.label}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-400">{easySummary.helper}</p>
+                  </div>
+                ) : null}
+
+                <div className="mt-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-white">
+                      {detailMode ? 'Five explainable risk signals' : '핵심 위험 신호 5개'}
+                    </p>
+                    <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-300">
+                      {detailMode ? 'signal-first view' : '쉬운 설명 우선'}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {riskSignals.map((signal) => (
+                      <RiskSignalCard key={signal.label} signal={signal} />
+                    ))}
+                  </div>
+                </div>
+
                 <div className="mt-5 rounded-[22px] border border-white/10 bg-slate-950/40 p-4">
                   <p className="text-sm font-medium text-white">
-                    {detailMode ? 'Score Reasoning Log' : '주요 판단 근거'}
+                    {detailMode ? 'Score Reasoning Log' : '세부 판단 로그'}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {summary.risk.log.map((line) => (
@@ -349,6 +390,24 @@ function FreshnessRow({
   );
 }
 
+function RiskSignalCard({
+  signal,
+}: {
+  signal: DerivedRiskSignal;
+}) {
+  return (
+    <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium text-white">{signal.label}</p>
+        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${signalBadgeClass(signal.tone)}`}>
+          {signal.statusLabel}
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-slate-300">{signal.description}</p>
+    </div>
+  );
+}
+
 function RiskTrendChart({
   history,
 }: {
@@ -496,9 +555,143 @@ function riskLabel(score: number) {
   return '안전';
 }
 
+type RiskSignalTone = 'safe' | 'monitor' | 'warning';
+
+type DerivedRiskSignal = {
+  label: string;
+  statusLabel: string;
+  description: string;
+  tone: RiskSignalTone;
+};
+
+function signalBadgeClass(tone: RiskSignalTone) {
+  if (tone === 'warning') return 'border-rose-500/30 bg-rose-500/10 text-rose-100';
+  if (tone === 'monitor') return 'border-amber-500/30 bg-amber-500/10 text-amber-100';
+  return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100';
+}
+
+function buildRiskSignals(summary: OracleSnapshot['latest']): DerivedRiskSignal[] {
+  const { metrics } = summary;
+  const salePrice = metrics.avgSalePrice || 0;
+  const depositRatio = salePrice > 0 ? metrics.avgRentDeposit / salePrice : 0;
+  const repaymentGap = Math.max(metrics.avgRentDeposit + metrics.seniorDebtKRW - salePrice, 0);
+
+  return [
+    metrics.seniorDebtKRW > 0
+      ? {
+          label: '선순위채권 / 근저당',
+          statusLabel: '주의',
+          description: `선순위채권이 ${formatCurrency(metrics.seniorDebtKRW)} 잡혀 있어 보증금보다 먼저 나가는 권리가 존재합니다.`,
+          tone: 'monitor',
+        }
+      : {
+          label: '선순위채권 / 근저당',
+          statusLabel: '안전',
+          description: '현재 반영된 데이터 기준으로 선순위채권이나 큰 근저당 신호는 보이지 않습니다.',
+          tone: 'safe',
+        },
+    metrics.auctionStarted
+      ? {
+          label: '압류 · 경매 강한 플래그',
+          statusLabel: '위험',
+          description: '경매 또는 강한 법적 절차 신호가 감지돼 즉시 재확인이 필요한 상태입니다.',
+          tone: 'warning',
+        }
+      : {
+          label: '압류 · 경매 강한 플래그',
+          statusLabel: '안전',
+          description: '현재 반영된 데이터에서는 강한 경매·압류 신호가 확인되지 않았습니다.',
+          tone: 'safe',
+        },
+    metrics.newMortgageSet
+      ? {
+          label: '최근 권리변동',
+          statusLabel: '주의',
+          description: '최근 근저당 또는 권리관계 변화 신호가 있어 등기부 재확인이 권장됩니다.',
+          tone: 'monitor',
+        }
+      : {
+          label: '최근 권리변동',
+          statusLabel: '안전',
+          description: '최근 권리관계가 급하게 변한 흔적은 크지 않아 보입니다.',
+          tone: 'safe',
+        },
+    depositRatio >= 0.8
+      ? {
+          label: '보증금 대비 매매가 비율',
+          statusLabel: '위험',
+          description: `전세보증금이 매매가의 약 ${Math.round(depositRatio * 100)}% 수준이라 반환 여력이 빠듯할 수 있습니다.`,
+          tone: 'warning',
+        }
+      : depositRatio >= 0.6
+        ? {
+            label: '보증금 대비 매매가 비율',
+            statusLabel: '주의',
+            description: `전세보증금이 매매가의 약 ${Math.round(depositRatio * 100)}% 수준으로, 추가 확인이 필요한 구간입니다.`,
+            tone: 'monitor',
+          }
+        : {
+            label: '보증금 대비 매매가 비율',
+            statusLabel: '안전',
+            description: `전세보증금이 매매가의 약 ${Math.round(depositRatio * 100)}% 수준으로 상대적으로 완만한 편입니다.`,
+            tone: 'safe',
+          },
+    repaymentGap > 0
+      ? {
+          label: '반환 재원 여력',
+          statusLabel: '위험',
+          description: `매매가 대비 선순위채권과 보증금을 합치면 약 ${formatCurrency(repaymentGap)} 정도 부족 신호가 보입니다.`,
+          tone: 'warning',
+        }
+      : {
+          label: '반환 재원 여력',
+          statusLabel: '안전',
+          description: '현재 평균 매매가 대비 선순위채권과 보증금을 감안해도 반환 재원 여력은 남아 있는 편입니다.',
+          tone: 'safe',
+        },
+  ];
+}
+
+function easyRiskSummary(score: number, signals: DerivedRiskSignal[]) {
+  const warningCount = signals.filter((signal) => signal.tone === 'warning').length;
+  const monitorCount = signals.filter((signal) => signal.tone === 'monitor').length;
+
+  if (score >= 70 || warningCount >= 2) {
+    return {
+      label: '재확인 권장',
+      tone: 'warning' as const,
+      summary:
+        '강한 위험 신호가 함께 보여 계약을 바로 진행하기보다 등기·채권·반환 재원을 먼저 다시 확인하는 편이 안전합니다.',
+      helper: '특히 경매·압류 플래그, 과도한 전세가율, 반환 재원 부족 신호는 우선적으로 점검해야 합니다.',
+    };
+  }
+
+  if (score >= 40 || monitorCount >= 2) {
+    return {
+      label: '추가 확인 필요',
+      tone: 'monitor' as const,
+      summary:
+        '지금은 바로 위험하다고 단정하긴 어렵지만, 몇 가지 주의 신호가 겹쳐 보여 계약 전 추가 확인이 필요한 상태입니다.',
+      helper: '권리변동, 선순위채권, 전세가율처럼 누적되면 위험해지는 신호를 중심으로 다시 보면 좋습니다.',
+    };
+  }
+
+  return {
+    label: '현재는 안정 구간',
+    tone: 'safe' as const,
+    summary:
+      '현재 공개 데이터 기준으로 큰 위험 신호는 많지 않습니다. 다만 실제 계약 전에는 최신 등기와 특약 조건까지 함께 보는 것이 좋습니다.',
+    helper: '안전 표시는 위험 신호가 적다는 뜻이지, 법률 검토를 완전히 대신한다는 의미는 아닙니다.',
+  };
+}
+
 function formatPercent(value?: number | null) {
   if (value == null) return '데이터 없음';
   return `${value.toFixed(3)}%`;
+}
+
+function formatCurrency(value: number) {
+  return `${Math.round(value).toLocaleString('ko-KR')}원`;
 }
 
 function formatDateTime(value?: string | null) {

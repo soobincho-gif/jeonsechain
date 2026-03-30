@@ -171,6 +171,21 @@ export default function SettlementPreview({
           <div className="mt-5 rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4">
             <p className="text-sm font-semibold text-white">{stageMeta.headline}</p>
             <p className="mt-2 text-sm leading-6 text-slate-200">{stageMeta.description}</p>
+            <div className="settlement-people mt-4" aria-hidden="true">
+              <div className="settlement-people__party">
+                <span className="settlement-people__head" />
+                <span className="settlement-people__body" />
+                <span className="settlement-people__label">임대인</span>
+              </div>
+              <div className={`settlement-people__status settlement-people__status--${stageTone(settlementStatus)}`}>
+                {settlementMotionLabel(settlementStatus)}
+              </div>
+              <div className="settlement-people__party settlement-people__party--tenant">
+                <span className="settlement-people__head" />
+                <span className="settlement-people__body" />
+                <span className="settlement-people__label">임차인</span>
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
@@ -262,4 +277,17 @@ function CategoryRow({ label, limit }: { label: string; limit: string }) {
       <span className="text-xs text-slate-400">{limit}</span>
     </div>
   );
+}
+
+function stageTone(status: SettlementStatus) {
+  if (status === '최종 정산 완료') return 'done';
+  if (status === '조정 진행') return 'warning';
+  return 'active';
+}
+
+function settlementMotionLabel(status: SettlementStatus) {
+  if (status === '정산 요청 접수') return '정산 요청';
+  if (status === '임차인 응답 대기') return '응답 대기';
+  if (status === '조정 진행') return '일부 보류';
+  return '정산 완료';
 }

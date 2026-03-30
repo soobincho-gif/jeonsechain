@@ -55,6 +55,21 @@ export default function GuidedStoryMode({
           <span className="rounded-full border border-white/15 px-3 py-1">{storyTitle}</span>
           <span className="rounded-full border border-white/15 px-3 py-1">다음 액션: {nextActionLabel}</span>
         </div>
+        <div className="guided-confirm mt-4" aria-hidden="true">
+          <div className={`guided-confirm__party ${currentStage >= 1 ? 'guided-confirm__party--active' : ''}`}>
+            <span className="guided-confirm__head" />
+            <span className="guided-confirm__body" />
+          </div>
+          <div className={`guided-confirm__contract ${currentStage >= 2 ? 'guided-confirm__contract--active' : ''}`}>
+            <span className="guided-confirm__line" />
+            <span className="guided-confirm__line guided-confirm__line--short" />
+          </div>
+          <div className={`guided-confirm__check ${currentStage >= 2 ? 'guided-confirm__check--active' : ''}`}>확인 완료</div>
+          <div className={`guided-confirm__party ${currentStage >= 2 ? 'guided-confirm__party--active' : ''}`}>
+            <span className="guided-confirm__head" />
+            <span className="guided-confirm__body" />
+          </div>
+        </div>
       </div>
 
       <div className="mt-6 grid gap-3 lg:grid-cols-3">

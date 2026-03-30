@@ -190,6 +190,38 @@ body {
   }
 }
 
+@keyframes trustFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes trustLinkPulse {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: scaleX(0.92);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes checkGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(110, 231, 183, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(110, 231, 183, 0);
+  }
+}
+
 @layer components {
   .shell {
     @apply mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8;
@@ -304,6 +336,63 @@ body {
     border-radius: 9999px;
     background: radial-gradient(circle at center, rgba(14, 116, 144, 0.22), rgba(15, 23, 42, 0));
     filter: blur(10px);
+  }
+
+  .hero-scene__people {
+    position: absolute;
+    left: 22px;
+    bottom: 38px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .hero-scene__person {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    animation: trustFloat 3.6s ease-in-out infinite;
+  }
+
+  .hero-scene__person--secondary {
+    animation-delay: 0.6s;
+  }
+
+  .hero-scene__person-head {
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    background: rgba(226, 232, 240, 0.95);
+  }
+
+  .hero-scene__person-body {
+    width: 22px;
+    height: 26px;
+    border-radius: 9999px 9999px 8px 8px;
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.22), rgba(59, 130, 246, 0.18));
+    border: 1px solid rgba(191, 219, 254, 0.36);
+  }
+
+  .hero-scene__trust-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(2, 6, 23, 0.72);
+    padding: 7px 10px;
+    font-size: 11px;
+    color: #dbeafe;
+    animation: checkGlow 2.8s ease-in-out infinite;
+  }
+
+  .hero-scene__trust-check-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background: #6ee7b7;
   }
 
   .hero-scene__contract-card {
@@ -573,6 +662,90 @@ body {
     animation: subtlePulse 2.2s ease-in-out infinite;
   }
 
+  .guided-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(2, 6, 23, 0.35);
+    padding: 10px 12px;
+  }
+
+  .guided-confirm__party {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.55;
+    transition: opacity 180ms ease;
+  }
+
+  .guided-confirm__party--active {
+    opacity: 1;
+  }
+
+  .guided-confirm__head {
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: rgba(226, 232, 240, 0.92);
+  }
+
+  .guided-confirm__body {
+    width: 18px;
+    height: 22px;
+    border-radius: 9999px 9999px 7px 7px;
+    border: 1px solid rgba(191, 219, 254, 0.36);
+    background: rgba(34, 211, 238, 0.14);
+  }
+
+  .guided-confirm__contract {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 28px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.74);
+    padding: 8px 6px;
+    opacity: 0.55;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .guided-confirm__contract--active {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+
+  .guided-confirm__line {
+    height: 3px;
+    border-radius: 9999px;
+    background: rgba(191, 219, 254, 0.74);
+  }
+
+  .guided-confirm__line--short {
+    width: 68%;
+  }
+
+  .guided-confirm__check {
+    border-radius: 9999px;
+    border: 1px solid rgba(16, 185, 129, 0.12);
+    background: rgba(15, 23, 42, 0.52);
+    padding: 6px 10px;
+    font-size: 11px;
+    color: rgba(226, 232, 240, 0.82);
+    opacity: 0.58;
+    transition: opacity 180ms ease, border-color 180ms ease, background 180ms ease;
+  }
+
+  .guided-confirm__check--active {
+    opacity: 1;
+    border-color: rgba(16, 185, 129, 0.26);
+    background: rgba(16, 185, 129, 0.1);
+    animation: checkGlow 2.6s ease-in-out infinite;
+  }
+
   .map-pin-drop {
     animation: pinDrop 720ms cubic-bezier(0.2, 0.9, 0.22, 1.05) both;
   }
@@ -587,6 +760,120 @@ body {
 
   .section-spotlight {
     animation: spotlightRing 1.35s ease-out;
+  }
+
+  .trust-people {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(2, 6, 23, 0.42);
+    padding: 8px 10px;
+  }
+
+  .trust-avatar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    animation: trustFloat 3.5s ease-in-out infinite;
+  }
+
+  .trust-avatar--secondary {
+    animation-delay: 0.5s;
+  }
+
+  .trust-avatar__head {
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: rgba(226, 232, 240, 0.94);
+  }
+
+  .trust-avatar__body {
+    width: 18px;
+    height: 22px;
+    border-radius: 9999px 9999px 8px 8px;
+    border: 1px solid rgba(191, 219, 254, 0.3);
+    background: rgba(34, 211, 238, 0.12);
+  }
+
+  .trust-link {
+    width: 28px;
+    height: 2px;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, rgba(34, 211, 238, 0.3), rgba(110, 231, 183, 0.75), rgba(34, 211, 238, 0.3));
+    animation: trustLinkPulse 2.8s ease-in-out infinite;
+  }
+
+  .settlement-people {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .settlement-people__party {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 56px;
+    animation: trustFloat 3.5s ease-in-out infinite;
+  }
+
+  .settlement-people__party--tenant {
+    animation-delay: 0.55s;
+  }
+
+  .settlement-people__head {
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: rgba(226, 232, 240, 0.95);
+  }
+
+  .settlement-people__body {
+    width: 18px;
+    height: 22px;
+    border-radius: 9999px 9999px 8px 8px;
+    border: 1px solid rgba(191, 219, 254, 0.3);
+    background: rgba(125, 211, 252, 0.12);
+  }
+
+  .settlement-people__label {
+    font-size: 11px;
+    color: #cbd5e1;
+  }
+
+  .settlement-people__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.58);
+    padding: 7px 12px;
+    font-size: 11px;
+    color: #e2e8f0;
+  }
+
+  .settlement-people__status--active {
+    border-color: rgba(34, 211, 238, 0.22);
+    background: rgba(34, 211, 238, 0.08);
+  }
+
+  .settlement-people__status--warning {
+    border-color: rgba(251, 191, 36, 0.22);
+    background: rgba(251, 191, 36, 0.08);
+  }
+
+  .settlement-people__status--done {
+    border-color: rgba(16, 185, 129, 0.28);
+    background: rgba(16, 185, 129, 0.12);
+    animation: checkGlow 2.7s ease-in-out infinite;
   }
 }
 
@@ -630,6 +917,17 @@ body {
     right: 18px;
     width: 124px;
   }
+
+  .hero-scene__people {
+    left: 18px;
+    bottom: 18px;
+    gap: 8px;
+  }
+
+  .hero-scene__trust-check {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -643,11 +941,18 @@ body {
   .hero-scene__shield,
   .hero-scene__shield-ring,
   .hero-scene__dot,
+  .hero-scene__person,
+  .hero-scene__trust-check,
   .guided-step-current,
+  .guided-confirm__check--active,
   .map-pin-drop,
   .mini-map-pulse,
   .mini-map-route,
   .section-spotlight,
+  .trust-avatar,
+  .trust-link,
+  .settlement-people__party,
+  .settlement-people__status--done,
   .motion-safe\:animate-\[guidedProgress_1s_ease-out\],
   .motion-safe\:animate-\[barReveal_1s_ease-out\],
   .motion-safe\:animate-\[barReveal_1s_ease-out_180ms_both\] {

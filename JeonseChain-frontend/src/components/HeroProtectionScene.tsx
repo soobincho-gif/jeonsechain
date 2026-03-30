@@ -29,6 +29,20 @@ export default function HeroProtectionScene({
         <div className="hero-scene__tag hero-scene__tag--vault">보호 시작</div>
         <div className="hero-scene__tag hero-scene__tag--return">자동 반환</div>
         <div className="hero-scene__ground" />
+        <div className="hero-scene__people" aria-hidden="true">
+          <div className="hero-scene__person">
+            <span className="hero-scene__person-head" />
+            <span className="hero-scene__person-body" />
+          </div>
+          <div className="hero-scene__trust-check">
+            <span className="hero-scene__trust-check-dot" />
+            <span>양측 확인</span>
+          </div>
+          <div className="hero-scene__person hero-scene__person--secondary">
+            <span className="hero-scene__person-head" />
+            <span className="hero-scene__person-body" />
+          </div>
+        </div>
         <div className="hero-scene__contract-card">
           <div className="hero-scene__contract-line" />
           <div className="hero-scene__contract-line hero-scene__contract-line--short" />
