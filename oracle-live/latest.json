@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-03-30T14:39:03.275Z",
+  "generatedAt": "2026-03-30T15:48:49.448Z",
   "health": {
     "status": "healthy",
     "watchMode": false,
     "latestRunSource": "DATA_GO_KR",
-    "lastSuccessAt": "2026-03-30T14:39:03.275Z",
+    "lastSuccessAt": "2026-03-30T15:48:49.448Z",
     "failureCount": 0
   },
   "latest": {
-    "fetchedAt": "2026-03-30T14:38:41.931Z",
+    "fetchedAt": "2026-03-30T15:48:32.150Z",
     "propertyId": "0xcc5d24dfc348b714e7348b8632b338bc55e350e7c9a97d3fe21810f8e858e2f9",
     "address": "서울특별시 마포구 월드컵북로 396",
     "beopjeongCode": "11440",
@@ -63,62 +63,62 @@
       "auctionSource": "API_OR_DEFAULT_FALSE",
       "mortgageSource": "API_OR_DEFAULT_FALSE"
     },
-    "bundleHash": "0xd613e9eff73b852ea524b3ee7cb24d71a56761fa0446148c808be1a8d63a1078",
-    "reportFileName": "2026-03-30T14-38-41-931Z_cc5d24df_d613e9ef.json",
+    "bundleHash": "0x36d562f793c189bfec790580c8aede9adb09bd71977a93be6e7050565e2e6d61",
+    "reportFileName": "2026-03-30T15-48-32-150Z_cc5d24df_36d562f7.json",
     "reportPath": null,
     "onchain": {
       "oracleAddress": "0x3005dBF4668a4E7680215F8aAB00F69C2E8EFC79",
-      "updatePropertyDataTx": "0x76e0c9b28015d23e6df158592c92089e705c1d9dfc1ee43d54f46209cf52dda4",
-      "updateRiskScoreTx": "0xb348d47e94ffba297cff42eb7f2c8ae8572b9fa423a477bf6d31fc554179b100",
-      "updatedAt": "2026-03-30T14:39:03.275Z"
+      "updatePropertyDataTx": "0x73d0c2f72e258fef936c18e0213ab3860a91ef60031acc4ad16b1c6dfcee717e",
+      "updateRiskScoreTx": "0x81afaa4396955e82138da9d8ca90858ac720608184d7ad05335672f6817d8845",
+      "updatedAt": "2026-03-30T15:48:49.448Z"
     },
     "freshness": {
-      "marketDataFetchedAt": "2026-03-30T14:38:41.931Z",
-      "oracleUpdatedAt": "2026-03-30T14:39:03.275Z"
+      "marketDataFetchedAt": "2026-03-30T15:48:32.150Z",
+      "oracleUpdatedAt": "2026-03-30T15:48:49.448Z"
     },
     "timeline": [
       {
         "kind": "report",
         "title": "오라클 보고서 저장",
-        "description": "2026-03-30T14-38-41-931Z_cc5d24df_d613e9ef.json",
-        "timestamp": "2026-03-30T14:39:03.275Z",
+        "description": "2026-03-30T15-48-32-150Z_cc5d24df_36d562f7.json",
+        "timestamp": "2026-03-30T15:48:49.448Z",
         "tone": "info"
       },
       {
         "kind": "onchain-property",
         "title": "updatePropertyData 반영",
         "description": "공시가, 선순위채권, 위험 플래그를 온체인에 기록했습니다.",
-        "timestamp": "2026-03-30T14:39:03.275Z",
-        "txHash": "0x76e0c9b28015d23e6df158592c92089e705c1d9dfc1ee43d54f46209cf52dda4",
+        "timestamp": "2026-03-30T15:48:49.448Z",
+        "txHash": "0x73d0c2f72e258fef936c18e0213ab3860a91ef60031acc4ad16b1c6dfcee717e",
         "tone": "success"
       },
       {
         "kind": "onchain-risk",
         "title": "updateRiskScore 반영",
         "description": "리스크 점수와 bundleHash를 온체인에 기록했습니다.",
-        "timestamp": "2026-03-30T14:39:03.275Z",
-        "txHash": "0xb348d47e94ffba297cff42eb7f2c8ae8572b9fa423a477bf6d31fc554179b100",
+        "timestamp": "2026-03-30T15:48:49.448Z",
+        "txHash": "0x81afaa4396955e82138da9d8ca90858ac720608184d7ad05335672f6817d8845",
         "tone": "success"
       },
       {
         "kind": "market-data",
         "title": "최근 실거래 집계 완료",
         "description": "전월세 300건, 매매 244건을 반영했습니다.",
-        "timestamp": "2026-03-30T14:38:41.931Z",
+        "timestamp": "2026-03-30T15:48:32.150Z",
         "tone": "success"
       },
       {
         "kind": "benchmark",
         "title": "금리 benchmark 반영",
         "description": "기준금리 2.5%, 국고채 3Y 3.542%를 참고했습니다.",
-        "timestamp": "2026-03-30T14:38:41.931Z",
+        "timestamp": "2026-03-30T15:48:32.150Z",
         "tone": "success"
       }
     ]
   },
   "history": [
     {
-      "fetchedAt": "2026-03-30T14:38:41.931Z",
+      "fetchedAt": "2026-03-30T15:48:32.150Z",
       "riskScore": 0,
       "label": "안전",
       "eventTags": [
@@ -126,9 +126,9 @@
       ],
       "baseRatePct": 2.5,
       "treasury3yPct": 3.542,
-      "bundleHash": "0xd613e9eff73b852ea524b3ee7cb24d71a56761fa0446148c808be1a8d63a1078",
+      "bundleHash": "0x36d562f793c189bfec790580c8aede9adb09bd71977a93be6e7050565e2e6d61",
       "source": "DATA_GO_KR"
     }
   ],
-  "publishedAt": "2026-03-30T14:39:03.276Z"
+  "publishedAt": "2026-03-30T15:48:49.449Z"
 }
