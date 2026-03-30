@@ -11,7 +11,11 @@
     "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
     "keeper:settlement": "node scripts/settlement-keeper.js",
     "oracle:fetch": "node scripts/oracle-fetcher.js",
-    "oracle:watch": "node scripts/oracle-fetcher.js --config ./config/oracle-properties.sample.json --watch --save-report"
+    "oracle:watch": "node scripts/oracle-fetcher.js --config ./config/oracle-properties.sample.json --watch --save-report",
+    "oracle:compare": "node scripts/oracle-fetcher.js --config ./config/oracle-properties.compare.json --save-report",
+    "oracle:watch:compare": "node scripts/oracle-fetcher.js --config ./config/oracle-properties.compare.json --watch --save-report",
+    "demo:e2e": "hardhat run scripts/demo-e2e.js --network hardhat",
+    "demo:e2e:sepolia": "hardhat run scripts/demo-e2e.js --network sepolia"
   },
   "keywords": [],
   "author": "",

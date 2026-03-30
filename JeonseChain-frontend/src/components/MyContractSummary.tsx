@@ -145,7 +145,13 @@ export default function MyContractSummary({
                 <InfoCard label="현재 상태" value={statusLabel} helper="정상 / 주의 / 위험처럼 한눈에 읽히는 상태 표현" />
                 <InfoCard label="리스크 점수" value={`${riskScore} / 100`} helper="낮을수록 주의가 필요한 상태" />
               </div>
-              <LifecycleTimeline stage={stage} detailMode={detailMode} />
+              <LifecycleTimeline
+                stage={stage}
+                detailMode={detailMode}
+                statusLabel={statusLabel}
+                remainingLabel={remainingLabel}
+                liveLabel={liveLabel}
+              />
             </div>
           </div>
         ) : null}

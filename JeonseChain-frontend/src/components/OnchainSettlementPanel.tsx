@@ -20,6 +20,7 @@ import {
   formatKRW,
 } from '@/lib/format';
 import type { EvidenceBundleRecord } from '@/lib/evidence';
+import { buildStatelessEvidenceBundle } from '@/lib/evidence-browser';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
 type OnchainSettlementPanelProps = {
@@ -305,7 +306,29 @@ export default function OnchainSettlementPanel({
         leaseId,
       });
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : '증빙 업로드에 실패했습니다.');
+      try {
+        const bundle = await buildStatelessEvidenceBundle({
+          leaseId,
+          note: evidenceMemo,
+          files: evidenceFiles,
+        });
+        setUploadedEvidence(bundle);
+        onActivity({
+          title: '브라우저 해시 번들을 생성했어요',
+          description:
+            '배포 환경이나 일시적인 API 오류가 있어도, 브라우저에서 직접 파일 해시와 manifest를 만들어 정산 청구를 이어갈 수 있습니다.',
+          tone: 'success',
+          leaseId,
+        });
+      } catch (fallbackError) {
+        const primaryMessage =
+          error instanceof Error ? error.message : '증빙 업로드에 실패했습니다.';
+        const fallbackMessage =
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : '브라우저 해시 번들 생성도 실패했습니다.';
+        setUploadError(`${primaryMessage} / ${fallbackMessage}`);
+      }
     } finally {
       setIsUploadingEvidence(false);
     }
@@ -520,7 +543,7 @@ export default function OnchainSettlementPanel({
                 className="mt-2 block w-full rounded-2xl border border-dashed border-white/10 bg-slate-900/40 px-4 py-4 text-sm text-slate-200 file:mr-4 file:rounded-full file:border-0 file:bg-cyan-300 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950 hover:border-cyan-300/30"
               />
               <p className="mt-2 text-xs text-slate-400">
-                이미지 또는 PDF를 올리면 서버에 저장하고, 파일 해시를 묶어 bytes32 번들 해시를 생성합니다.
+                이미지 또는 PDF를 올리면 우선 업로드를 시도하고, 외부 배포 환경에서는 브라우저 해시 번들 모드로 자동 전환될 수 있습니다.
               </p>
             </label>
             {evidenceFiles.length > 0 ? (
@@ -558,7 +581,7 @@ export default function OnchainSettlementPanel({
                 disabled={evidenceFiles.length === 0 || isUploadingEvidence}
                 className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isUploadingEvidence ? '증빙 업로드 중...' : '증빙 업로드하고 해시 생성'}
+                {isUploadingEvidence ? '증빙 업로드 중...' : '증빙 업로드 또는 해시 생성'}
               </button>
               {uploadedEvidence ? (
                 <a

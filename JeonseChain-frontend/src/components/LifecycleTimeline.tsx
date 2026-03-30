@@ -36,9 +36,18 @@ const STEPS = [
 type LifecycleTimelineProps = {
   stage: number;
   detailMode?: boolean;
+  statusLabel?: string;
+  remainingLabel?: string;
+  liveLabel?: string;
 };
 
-export default function LifecycleTimeline({ stage, detailMode = false }: LifecycleTimelineProps) {
+export default function LifecycleTimeline({
+  stage,
+  detailMode = false,
+  statusLabel,
+  remainingLabel,
+  liveLabel,
+}: LifecycleTimelineProps) {
   return (
     <div className="rounded-[24px] border border-white/10 bg-slate-950/55 p-4">
       <div className="flex items-center justify-between gap-3">
@@ -54,6 +63,26 @@ export default function LifecycleTimeline({ stage, detailMode = false }: Lifecyc
           {detailMode ? `stage ${stage}/5` : `${stage} / 5 단계`}
         </span>
       </div>
+
+      {(statusLabel || remainingLabel || liveLabel) ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {statusLabel ? (
+            <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+              현재 상태 {statusLabel}
+            </span>
+          ) : null}
+          {remainingLabel ? (
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
+              남은 기간 {remainingLabel}
+            </span>
+          ) : null}
+          {liveLabel ? (
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
+              {liveLabel}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-5 grid gap-3">
         {STEPS.map((stepItem, index) => {
@@ -87,12 +116,31 @@ export default function LifecycleTimeline({ stage, detailMode = false }: Lifecyc
                 ) : null}
               </div>
               <div className="pb-4">
-                <p className="text-sm font-semibold text-white">
-                  {detailMode ? stepItem.technicalTitle : stepItem.simpleTitle}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-white">
+                    {detailMode ? stepItem.technicalTitle : stepItem.simpleTitle}
+                  </p>
+                  {isCurrent ? (
+                    <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100">
+                      현재 단계
+                    </span>
+                  ) : null}
+                  {isComplete ? (
+                    <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-100">
+                      완료
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-1 text-sm leading-6 text-slate-400">
                   {detailMode ? stepItem.technicalDescription : stepItem.simpleDescription}
                 </p>
+                {isCurrent && remainingLabel ? (
+                  <p className="mt-2 text-xs leading-5 text-cyan-100/90">
+                    {detailMode
+                      ? `현재 상태 ${statusLabel ?? '-'} · remaining ${remainingLabel}`
+                      : `실시간 상태 ${statusLabel ?? '-'} 기준으로 지금 이 단계가 강조되고 있습니다.`}
+                  </p>
+                ) : null}
               </div>
             </div>
           );

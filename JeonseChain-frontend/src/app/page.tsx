@@ -970,7 +970,7 @@ function buildLiveSummary({
     statusLabel: CONTRACT_STATE[stateNum] || '상태 미확인',
     riskScore: riskScoreFromState(stateNum),
     tone,
-    stage: stageFromState(stateNum),
+    stage: stageFromState(stateNum, liveRemaining),
     note: currentValueNumber > 0 ? '실시간 계약 데이터를 기반으로 현재 보호 상태를 표시합니다.' : '등록은 됐지만 아직 보증금이 예치되지 않은 상태입니다.',
     liveLabel: '실시간 온체인 계약',
     depositKRW: activeLease?.depositKRW || String(Math.round(depositNumber / 1e18)),
@@ -1000,8 +1000,11 @@ function riskScoreFromState(stateNum: number) {
   return 84;
 }
 
-function stageFromState(stateNum: number) {
+function stageFromState(stateNum: number, remainingDays?: bigint) {
   if (stateNum === 0) return 1;
+  if (stateNum === 1 && remainingDays !== undefined && remainingDays > BigInt(0) && remainingDays <= BigInt(30)) {
+    return 4;
+  }
   if (stateNum === 1) return 3;
   if (stateNum === 2 || stateNum === 5) return 3;
   if (stateNum === 3) return 4;
