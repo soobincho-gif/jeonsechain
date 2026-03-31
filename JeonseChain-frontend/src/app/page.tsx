@@ -234,7 +234,9 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [selectedAddress, setSelectedAddress] = useState<AddressRecord | null>(ADDRESS_BOOK[0]);
+  const [postalCode, setPostalCode] = useState(ADDRESS_BOOK[0]?.postalCode ?? '');
   const [detailAddress, setDetailAddress] = useState('');
+  const [leaseDirectory, setLeaseDirectory] = useState<LeaseDraft[]>([]);
   const [selectedDemoId, setSelectedDemoId] = useState(DEMO_LEASES[0].id);
   const [experienceAudience, setExperienceAudience] = useState<ExperienceAudience>('all');
   const [settlementDemoStatus, setSettlementDemoStatus] = useState<SettlementStatus>(
@@ -372,9 +374,11 @@ export default function Home() {
       try {
         const parsed = JSON.parse(stored) as {
           activeLease: LeaseDraft | null;
+          leaseDirectory?: LeaseDraft[];
           activities: ActivityItem[];
           selectedAddress?: AddressRecord | null;
           selectedAddressId?: string;
+          postalCode?: string;
           detailAddress?: string;
           demoMode?: boolean;
           selectedDemoId?: string;
@@ -386,6 +390,7 @@ export default function Home() {
         };
 
         setActiveLease(parsed.activeLease);
+        setLeaseDirectory(parsed.leaseDirectory ?? (parsed.activeLease?.leaseId ? [parsed.activeLease] : []));
         setActivities(parsed.activities ?? []);
         setDemoMode(parsed.demoMode ?? true);
         setAutoRefreshEnabled(parsed.autoRefreshEnabled ?? true);
@@ -396,6 +401,7 @@ export default function Home() {
             ? parsed.selectedAddress
             : ADDRESS_BOOK.find((item) => item.id === parsed.selectedAddressId);
         if (storedAddress) setSelectedAddress(storedAddress);
+        setPostalCode(parsed.postalCode ?? storedAddress?.postalCode ?? ADDRESS_BOOK[0]?.postalCode ?? '');
         setDetailAddress(parsed.detailAddress ?? '');
         setContractRoleView(parsed.contractRoleView ?? 'landlord');
 
@@ -434,9 +440,11 @@ export default function Home() {
       STORAGE_KEY,
       JSON.stringify({
         activeLease,
+        leaseDirectory,
         activities,
         selectedAddress,
         selectedAddressId: selectedAddress?.id,
+        postalCode,
         detailAddress,
         demoMode,
         selectedDemoId,
@@ -449,6 +457,7 @@ export default function Home() {
     );
   }, [
     activeLease,
+    leaseDirectory,
     activities,
     autoRefreshEnabled,
     contractRoleView,
@@ -456,6 +465,7 @@ export default function Home() {
     demoMode,
     experienceAudience,
     hydrated,
+    postalCode,
     selectedAddress,
     selectedDemoId,
     settlementDemoStatus,
@@ -565,16 +575,36 @@ export default function Home() {
   function mergeLease(next: LeaseDraft, nextTab?: Tab) {
     setDemoMode(false);
     setRegistrationIntent(false);
-    setActiveLease((current) => ({
-      ...(shouldResetLeaseContext(current, next)
+    const mergedLease = {
+      ...(shouldResetLeaseContext(activeLease, next)
         ? { leaseId: next.leaseId }
-        : (current ?? { leaseId: next.leaseId })),
+        : (activeLease ?? { leaseId: next.leaseId })),
       ...next,
-    }));
+    };
+    setActiveLease(mergedLease);
+    setLeaseDirectory((current) => upsertLeaseDirectory(current, mergedLease));
     if (nextTab) {
       setTab(nextTab);
       setContractRoleView(nextTab);
     }
+  }
+
+  function openSavedLease(lease: LeaseDraft) {
+    setDemoMode(false);
+    setRegistrationIntent(false);
+    setActiveLease(lease);
+    setLeaseDirectory((current) => upsertLeaseDirectory(current, lease));
+    const nextTab = tab === 'landlord' ? 'viewer' : tab;
+    setTab(nextTab);
+    setContractRoleView(nextTab);
+  }
+
+  function startFreshLease() {
+    setDemoMode(false);
+    setRegistrationIntent(true);
+    setActiveLease(null);
+    setTab('landlord');
+    setContractRoleView('landlord');
   }
 
   function activateDemo(
@@ -1207,10 +1237,23 @@ export default function Home() {
                 <div className="mt-6">
                   <AddressSearchPanel
                     selectedAddress={selectedAddress}
+                    postalCode={postalCode}
                     detailAddress={detailAddress}
                     selectedRiskOverride={selectedOraclePreview}
                     onSelect={(record) => {
                       setSelectedAddress(record);
+                      setPostalCode(record.postalCode);
+                    }}
+                    onPostalCodeChange={(value) => {
+                      setPostalCode(value);
+                      setSelectedAddress((current) =>
+                        current?.source === 'manual'
+                          ? {
+                              ...current,
+                              postalCode: value || '직접 입력',
+                            }
+                          : current,
+                      );
                     }}
                     onDetailAddressChange={setDetailAddress}
                   />
@@ -1255,6 +1298,15 @@ export default function Home() {
                     </div>
 
                     <div className="px-5 py-6 sm:px-6">
+                      {!demoMode ? (
+                        <LeaseDirectoryPanel
+                          leases={leaseDirectory}
+                          activeLeaseId={activeLease?.leaseId}
+                          activeTab={tab}
+                          onCreateNew={startFreshLease}
+                          onOpenLease={openSavedLease}
+                        />
+                      ) : null}
                       {renderWorkspace({
                         walletState,
                         activeRole: tab,
@@ -1536,6 +1588,70 @@ function renderWorkspace({
   return children;
 }
 
+function LeaseDirectoryPanel({
+  leases,
+  activeLeaseId,
+  activeTab,
+  onCreateNew,
+  onOpenLease,
+}: {
+  leases: LeaseDraft[];
+  activeLeaseId?: string;
+  activeTab: Tab;
+  onCreateNew: () => void;
+  onOpenLease: (lease: LeaseDraft) => void;
+}) {
+  const visibleLeases = leases.filter((lease) => Boolean(lease.leaseId));
+
+  return (
+    <div className="mb-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">계약 묶음</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            새로 만든 계약은 순서대로 `계약 1`, `계약 2`, `계약 3`처럼 쌓입니다. 기존 계약을 다시 열어 이어서 보고, 새 계약은 별도로 시작할 수 있습니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onCreateNew}
+          className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/15"
+        >
+          {activeTab === 'landlord' ? '새 계약 만들기' : '등록 화면으로 가기'}
+        </button>
+      </div>
+
+      {visibleLeases.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-3">
+          {visibleLeases.map((lease, index) => {
+            const active = lease.leaseId === activeLeaseId;
+            return (
+              <button
+                key={lease.leaseId}
+                type="button"
+                onClick={() => onOpenLease(lease)}
+                className={`min-w-[180px] rounded-[20px] border px-4 py-3 text-left transition ${
+                  active
+                    ? 'border-cyan-300/30 bg-cyan-300/10'
+                    : 'border-white/10 bg-slate-950/45 hover:border-white/20 hover:bg-white/[0.04]'
+                }`}
+              >
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">계약 {index + 1}</p>
+                <p className="mt-2 text-sm font-semibold text-white">
+                  {lease.propertyLabel || `leaseId ${formatAddress(lease.leaseId, 8, 6)}`}
+                </p>
+                <p className="mt-2 text-xs text-slate-400">{formatAddress(lease.leaseId, 10, 8)}</p>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-slate-400">아직 저장된 실제 계약이 없습니다. 첫 계약을 만들면 여기서 번호로 구분해 보여드립니다.</p>
+      )}
+    </div>
+  );
+}
+
 function WorkspaceActionBanner({
   title,
   description,
@@ -1556,6 +1672,22 @@ function WorkspaceActionBanner({
       <p className="mt-2 text-sm leading-6 text-slate-200">{description}</p>
     </div>
   );
+}
+
+function upsertLeaseDirectory(current: LeaseDraft[], next: LeaseDraft) {
+  if (!next.leaseId) return current;
+
+  const existingIndex = current.findIndex((item) => item.leaseId === next.leaseId);
+  if (existingIndex === -1) {
+    return [...current, next];
+  }
+
+  const updated = [...current];
+  updated[existingIndex] = {
+    ...updated[existingIndex],
+    ...next,
+  };
+  return updated;
 }
 
 function WorkspaceEmptyState({

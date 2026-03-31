@@ -6,17 +6,21 @@ import { OracleRiskPreview } from '@/lib/property';
 
 type AddressSearchPanelProps = {
   selectedAddress: AddressRecord | null;
+  postalCode: string;
   detailAddress: string;
   selectedRiskOverride?: OracleRiskPreview | null;
   onSelect: (record: AddressRecord) => void;
+  onPostalCodeChange: (value: string) => void;
   onDetailAddressChange: (value: string) => void;
 };
 
 export default function AddressSearchPanel({
   selectedAddress,
+  postalCode,
   detailAddress,
   selectedRiskOverride,
   onSelect,
+  onPostalCodeChange,
   onDetailAddressChange,
 }: AddressSearchPanelProps) {
   const [query, setQuery] = useState(selectedAddress?.roadAddress ?? '');
@@ -49,7 +53,10 @@ export default function AddressSearchPanel({
   const canUseManualAddress =
     normalizedQuery.length > 0 &&
     normalizedQuery !== selectedAddress?.roadAddress.trim();
-  const manualAddressRecord = canUseManualAddress ? buildManualAddressRecord(normalizedQuery) : null;
+  const manualAddressRecord = canUseManualAddress
+    ? buildManualAddressRecord(normalizedQuery, postalCode.trim())
+    : null;
+  const postalInputEditable = Boolean(manualAddressRecord || selectedAddress?.source === 'manual');
 
   const selectedRisk = selectedAddress
     ? {
@@ -175,9 +182,26 @@ export default function AddressSearchPanel({
           <div className="mt-4 grid gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
             <label className="block">
               <span className="text-sm font-medium text-slate-200">우편번호</span>
-              <div className="mt-3 rounded-[24px] border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white">
-                {selectedAddress?.postalCode ?? '주소 선택 후 표시'}
-              </div>
+              {postalInputEditable ? (
+                <div className="mt-3 flex items-center gap-3 rounded-[24px] border border-white/10 bg-slate-950/50 px-4 py-3">
+                  <span className="text-lg">#</span>
+                  <input
+                    value={postalCode}
+                    onChange={(event) => onPostalCodeChange(event.target.value.replace(/\D/g, '').slice(0, 5))}
+                    placeholder="예: 03925"
+                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                  />
+                </div>
+              ) : (
+                <div className="mt-3 rounded-[24px] border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white">
+                  {selectedAddress?.postalCode ?? '주소 선택 후 표시'}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-slate-400">
+                {postalInputEditable
+                  ? '직접 입력 주소는 우편번호도 함께 적어두면 계약 라벨과 요약 카드에 같이 반영됩니다.'
+                  : '주소록에서 고른 우편번호는 자동으로 채워집니다.'}
+              </p>
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-200">상세주소</span>
@@ -272,12 +296,12 @@ export default function AddressSearchPanel({
   );
 }
 
-function buildManualAddressRecord(roadAddress: string): AddressRecord {
+function buildManualAddressRecord(roadAddress: string, postalCode: string): AddressRecord {
   const district = roadAddress.split(' ')[1] || '직접 입력';
 
   return {
     id: `manual:${roadAddress}`,
-    postalCode: '직접 입력',
+    postalCode: postalCode || '직접 입력',
     roadAddress,
     building: '직접 입력 주소',
     district,
