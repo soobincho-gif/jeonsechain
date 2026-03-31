@@ -32,6 +32,7 @@ type MyContractSummaryProps = {
   detailMode: boolean;
   activities: ActivityItem[];
   availableTabs?: SummaryTab[];
+  defaultTrustPerspective?: 'landlord' | 'tenant';
 };
 
 const TAB_LABELS: Record<SummaryTab, { basic: string; detail: string }> = {
@@ -64,6 +65,7 @@ export default function MyContractSummary({
   detailMode,
   activities,
   availableTabs = ['contract', 'risk', 'trust', 'settlement', 'activity'],
+  defaultTrustPerspective = 'landlord',
 }: MyContractSummaryProps) {
   const [tab, setTab] = useState<SummaryTab>(availableTabs[0] ?? 'contract');
   const recentActivities = useMemo(() => activities.slice(0, 5), [activities]);
@@ -197,7 +199,11 @@ export default function MyContractSummary({
         ) : null}
 
         {tab === 'trust' ? (
-          <TrustProfilePanel bundle={trustBundle} detailMode={detailMode} />
+          <TrustProfilePanel
+            bundle={trustBundle}
+            detailMode={detailMode}
+            defaultPerspective={defaultTrustPerspective}
+          />
         ) : null}
 
         {tab === 'settlement' ? (

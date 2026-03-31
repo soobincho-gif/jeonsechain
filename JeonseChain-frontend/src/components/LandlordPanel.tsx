@@ -301,12 +301,15 @@ export default function LandlordPanel({
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <SummaryRow label="우편번호" value={selectedAddress.postalCode} />
                 <SummaryRow label="현재 위험 점수" value={`${previewRiskScore}점`} />
-                <SummaryRow label="추천 판단" value={riskMeta.recommendation} />
+                <SummaryRow label="주소 추천 판단" value={riskMeta.recommendation} />
                 <SummaryRow label="권장 액션" value={riskMeta.nextAction} />
                 <SummaryRow label="근거 출처" value={oracleRiskPreview?.sourceLabel ?? '기본 샘플 주소 기준'} />
               </div>
 
               <p className="mt-4 text-sm leading-6 text-slate-200/90">{riskMeta.description}</p>
+              <p className="mt-2 text-xs leading-5 text-slate-300/80">
+                이 판단은 선택한 주소와 오라클 신호를 기준으로 한 사전 점검이며, 임차인 신뢰 프로필과는 별도로 봅니다.
+              </p>
               {blockedByOracle ? (
                 <p className="mt-3 text-sm leading-6 text-rose-100">
                   현재 온체인 오라클 기준으로는 위험 주소라서, 지금 상태로 `계약 등록 시작`을 누르면 컨트랙트가 등록을 거절합니다.

@@ -11,6 +11,7 @@ type NotificationCenterProps = {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
+  onItemClick?: (item: ActivityItem) => void;
 };
 
 export default function NotificationCenter({
@@ -19,6 +20,7 @@ export default function NotificationCenter({
   isOpen,
   onToggle,
   onClose,
+  onItemClick,
 }: NotificationCenterProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -77,6 +79,15 @@ export default function NotificationCenter({
                         <span className="text-xs text-slate-500">{formatClock(item.timestamp)}</span>
                       </div>
                       <p className="mt-2 text-sm leading-6 text-slate-300">{item.description}</p>
+                      {onItemClick ? (
+                        <button
+                          type="button"
+                          onClick={() => onItemClick(item)}
+                          className="mt-4 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-300/16"
+                        >
+                          {item.actionLabel ?? '관련 화면 열기'}
+                        </button>
+                      ) : null}
                     </div>
                   ))
                 )}

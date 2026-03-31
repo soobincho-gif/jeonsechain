@@ -51,6 +51,22 @@ test.describe('JeonseChain role-based IA smoke', () => {
     await expect(page.getByText('계약 조회 화면은 지갑 없이도 먼저 읽어볼 수 있어요')).toBeVisible();
   });
 
+  test('notification shortcuts and trust profile keep the current role context', async ({ page }) => {
+    await page.goto(BASE_URL);
+
+    await page.getByRole('button', { name: '임차인 관련 데모' }).click();
+    await expect(page.getByRole('heading', { name: /임차인 기준으로/ })).toBeVisible();
+
+    await page.getByRole('button', { name: '신뢰 프로필' }).click();
+    await expect(page.getByText('현재 열어둔 계약 문맥에 맞춰 임차인 관점부터 먼저 보여줍니다.')).toBeVisible();
+
+    await page.getByRole('button', { name: /퇴실 정산 계약/ }).click();
+    await page.getByRole('button', { name: /^알림/ }).click();
+    await expect(page.getByRole('button', { name: '데모 보기' })).toBeVisible();
+    await page.getByRole('button', { name: '데모 보기' }).click();
+    await expect(page.getByRole('heading', { name: /데모 "퇴실 정산 계약".*실제로 보여주는 것/ })).toBeVisible();
+  });
+
   test('mobile layout keeps role entry cards and workspaces inside viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(BASE_URL);

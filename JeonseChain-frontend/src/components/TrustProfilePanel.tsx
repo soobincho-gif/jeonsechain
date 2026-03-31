@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TrustAttestation, TrustBadge, TrustBundle, TrustBundleKind } from '@/lib/trust';
 
 type TrustProfilePanelProps = {
   bundle: TrustBundle;
   detailMode?: boolean;
+  defaultPerspective?: PerspectiveRole;
 };
 
 type PerspectiveRole = 'landlord' | 'tenant';
@@ -13,8 +14,9 @@ type PerspectiveRole = 'landlord' | 'tenant';
 export default function TrustProfilePanel({
   bundle,
   detailMode = false,
+  defaultPerspective = 'landlord',
 }: TrustProfilePanelProps) {
-  const [perspective, setPerspective] = useState<PerspectiveRole>('landlord');
+  const [perspective, setPerspective] = useState<PerspectiveRole>(defaultPerspective);
   const activeProfile = perspective === 'landlord' ? bundle.landlord : bundle.tenant;
   const counterpartProfile = perspective === 'landlord' ? bundle.tenant : bundle.landlord;
   const activeRoleLabel = perspective === 'landlord' ? '임대인' : '임차인';
@@ -23,6 +25,10 @@ export default function TrustProfilePanel({
     [activeRoleLabel, bundle.attestations],
   );
   const roleJourney = buildRoleJourney(bundle.kind, perspective);
+
+  useEffect(() => {
+    setPerspective(defaultPerspective);
+  }, [bundle.kind, bundle.landlord.displayName, bundle.tenant.displayName, defaultPerspective]);
 
   return (
     <div className="space-y-4">
@@ -59,6 +65,9 @@ export default function TrustProfilePanel({
               {detailMode
                 ? 'landlord / tenant role split view'
                 : '체험하기에서는 임대인과 임차인이 같은 계약을 어떻게 다른 순서로 보게 되는지 나눠서 보여줍니다.'}
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              현재 열어둔 계약 문맥에 맞춰 {defaultPerspective === 'tenant' ? '임차인' : '임대인'} 관점부터 먼저 보여줍니다.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 rounded-full border border-white/10 bg-white/[0.03] p-1">

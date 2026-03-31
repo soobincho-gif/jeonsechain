@@ -47,7 +47,7 @@ import {
   OracleRiskPreview,
   OracleSignalRead,
 } from '@/lib/property';
-import { ActivityItem, LeaseDraft } from '@/lib/workflow';
+import { ActivityItem, ActivityRoute, LeaseDraft } from '@/lib/workflow';
 
 type Tab = 'landlord' | 'tenant' | 'viewer';
 type Surface = 'landing' | 'experience' | 'contract' | 'more';
@@ -216,6 +216,68 @@ const MORE_MENU: { key: MoreView; label: string; description: string }[] = [
     description: '용어와 동작 방식을 빠르게 이해합니다.',
   },
 ];
+
+function withActivityNavigation(
+  activity: Omit<ActivityItem, 'id' | 'timestamp'>,
+  route: ActivityRoute,
+  actionLabel = activityActionLabel(route),
+): Omit<ActivityItem, 'id' | 'timestamp'> {
+  return {
+    ...activity,
+    route: {
+      ...activity.route,
+      ...route,
+    },
+    actionLabel: activity.actionLabel ?? actionLabel,
+  };
+}
+
+function activityActionLabel(route?: ActivityRoute) {
+  if (!route) return '관련 화면 열기';
+  if (route.surface === 'experience') {
+    return route.section === 'settlement' ? '정산 데모 보기' : '데모 보기';
+  }
+  if (route.surface === 'more') {
+    if (route.moreView === 'trust') return '신뢰 프로필 열기';
+    if (route.moreView === 'data') return '데이터 근거 열기';
+    if (route.moreView === 'signals') return '위험 신호 보기';
+    return '활동 로그 열기';
+  }
+  if (route.tab === 'landlord') return '임대인 화면으로 이동';
+  if (route.tab === 'tenant') return '임차인 화면으로 이동';
+  return '계약 조회로 이동';
+}
+
+function inferActivityRoute(activity: ActivityItem): ActivityRoute {
+  const content = `${activity.title} ${activity.description}`;
+
+  if (activity.route?.surface) return activity.route;
+  if (content.includes('데모') || content.includes('샘플 계약')) {
+    return { surface: 'experience', section: 'demo' };
+  }
+  if (content.includes('멀티시그') || content.includes('오라클')) {
+    return { surface: 'more', moreView: 'data' };
+  }
+  if (content.includes('신뢰')) {
+    return { surface: 'more', moreView: 'trust' };
+  }
+  if (content.includes('계약 등록') || content.includes('임대인')) {
+    return { surface: 'contract', tab: 'landlord', section: 'workspace' };
+  }
+  if (
+    content.includes('임차인') ||
+    content.includes('보증금') ||
+    content.includes('Vault') ||
+    content.includes('KRW 지급') ||
+    content.includes('사용 승인')
+  ) {
+    return { surface: 'contract', tab: 'tenant', section: 'workspace' };
+  }
+  if (activity.leaseId || content.includes('반환') || content.includes('정산') || content.includes('계약 조회')) {
+    return { surface: 'contract', tab: 'viewer', section: 'workspace' };
+  }
+  return { surface: 'more', moreView: 'activity' };
+}
 
 export default function Home() {
   const { address, isConnected, status } = useAccount();
@@ -572,6 +634,24 @@ export default function Home() {
     }, 3200);
   }
 
+  function pushLandlordActivity(activity: Omit<ActivityItem, 'id' | 'timestamp'>) {
+    const nextTab: Tab = activity.title.includes('계약 등록이 완료') ? 'tenant' : 'landlord';
+    pushActivity(withActivityNavigation(activity, { surface: 'contract', tab: nextTab, section: 'workspace' }));
+  }
+
+  function pushTenantActivity(activity: Omit<ActivityItem, 'id' | 'timestamp'>) {
+    const nextTab: Tab = activity.title.includes('보증금 입금이 완료') ? 'viewer' : 'tenant';
+    pushActivity(withActivityNavigation(activity, { surface: 'contract', tab: nextTab, section: 'workspace' }));
+  }
+
+  function pushViewerActivity(activity: Omit<ActivityItem, 'id' | 'timestamp'>) {
+    pushActivity(withActivityNavigation(activity, { surface: 'contract', tab: 'viewer', section: 'workspace' }));
+  }
+
+  function pushMultisigActivity(activity: Omit<ActivityItem, 'id' | 'timestamp'>) {
+    pushActivity(withActivityNavigation(activity, { surface: 'more', moreView: 'data' }));
+  }
+
   function mergeLease(next: LeaseDraft, nextTab?: Tab) {
     setDemoMode(false);
     setRegistrationIntent(false);
@@ -625,11 +705,16 @@ export default function Home() {
     const addressItem = ADDRESS_BOOK.find((item) => item.id === demo.addressId);
     if (addressItem) setSelectedAddress(addressItem);
     if (options?.announce !== false) {
-      pushActivity({
-        title: '계약 정보를 불러왔어요',
-        description: '지갑 연결 없이도 전세 lifecycle과 퇴실 정산 흐름을 미리 볼 수 있습니다.',
-        tone: 'info',
-      });
+      pushActivity(
+        withActivityNavigation(
+          {
+            title: '계약 정보를 불러왔어요',
+            description: '지갑 연결 없이도 전세 lifecycle과 퇴실 정산 흐름을 미리 볼 수 있습니다.',
+            tone: 'info',
+          },
+          { surface: 'experience', section: 'demo' },
+        ),
+      );
     }
   }
 
@@ -725,6 +810,60 @@ export default function Home() {
     onOpenTenant: () => openWorkspaceTab('tenant'),
   });
   const signalOverview = useMemo(() => buildSignalOverview(summaryView), [summaryView]);
+  const defaultTrustPerspective = useMemo<'landlord' | 'tenant'>(() => {
+    if (!demoMode && contractRoleView === 'tenant') return 'tenant';
+    if (!demoMode && contractRoleView === 'landlord') return 'landlord';
+    if (demoMode && experienceAudience === 'tenant') return 'tenant';
+    if (demoMode && experienceAudience === 'landlord') return 'landlord';
+
+    const normalizedConnected = address?.toLowerCase();
+    const liveTenant = liveInfo ? String(liveInfo[0]).toLowerCase() : activeLease?.tenant?.toLowerCase();
+    const liveLandlord = liveInfo ? String(liveInfo[1]).toLowerCase() : activeLease?.landlord?.toLowerCase();
+
+    if (normalizedConnected && liveTenant && normalizedConnected === liveTenant) return 'tenant';
+    if (normalizedConnected && liveLandlord && normalizedConnected === liveLandlord) return 'landlord';
+    return 'landlord';
+  }, [activeLease?.landlord, activeLease?.tenant, address, contractRoleView, demoMode, experienceAudience, liveInfo]);
+
+  function handleNotificationClick(item: ActivityItem) {
+    const target = inferActivityRoute(item);
+
+    setAlertsOpen(false);
+    setLastSeenAt(Date.now());
+
+    if (target.surface === 'experience') {
+      setSurface('experience');
+      setDemoMode(true);
+      setRegistrationIntent(false);
+      window.setTimeout(() => {
+        scrollToSection(
+          target.section === 'settlement' ? settlementRef : guidedDemoRef,
+          target.section === 'settlement' ? 'settlement' : 'demo',
+        );
+      }, 80);
+      return;
+    }
+
+    if (target.surface === 'more') {
+      openMore(target.moreView ?? 'activity');
+      return;
+    }
+
+    const nextTab = target.tab ?? 'viewer';
+    if (item.leaseId) {
+      mergeLease({ leaseId: item.leaseId }, nextTab);
+    } else {
+      setSurface('contract');
+      setDemoMode(false);
+      setRegistrationIntent(nextTab === 'landlord');
+      setTab(nextTab);
+      setContractRoleView(nextTab);
+    }
+
+    window.setTimeout(() => {
+      scrollToSection(workspaceRef, 'workspace');
+    }, 80);
+  }
 
   return (
     <div className="min-h-screen pb-20">
@@ -779,6 +918,7 @@ export default function Home() {
                 setAlertsOpen(false);
                 setLastSeenAt(Date.now());
               }}
+              onItemClick={handleNotificationClick}
             />
             <ConnectButton />
           </div>
@@ -1069,6 +1209,7 @@ export default function Home() {
                       detailMode={detailMode}
                       activities={activities}
                       availableTabs={['contract', 'risk', 'trust', 'settlement']}
+                      defaultTrustPerspective={defaultTrustPerspective}
                     />
                     <DemoRoleMapPanel
                       demo={selectedDemo}
@@ -1231,6 +1372,7 @@ export default function Home() {
                     detailMode={detailMode}
                     activities={activities}
                     availableTabs={['contract', 'settlement']}
+                    defaultTrustPerspective={defaultTrustPerspective}
                   />
                 </section>
 
@@ -1330,7 +1472,7 @@ export default function Home() {
                                 detailAddress={detailAddress}
                                 oracleRiskPreview={selectedOraclePreview}
                                 onLeaseCreated={(lease) => mergeLease(lease, 'tenant')}
-                                onActivity={pushActivity}
+                                onActivity={pushLandlordActivity}
                               />
                             ) : null}
 
@@ -1339,7 +1481,7 @@ export default function Home() {
                                 activeLease={activeLease}
                                 onLeaseSelected={(leaseId) => mergeLease({ leaseId })}
                                 onDepositComplete={(lease) => mergeLease(lease, 'viewer')}
-                                onActivity={pushActivity}
+                                onActivity={pushTenantActivity}
                               />
                             ) : null}
 
@@ -1348,7 +1490,7 @@ export default function Home() {
                                 activeLease={activeLease}
                                 onLeaseSelected={(leaseId) => mergeLease({ leaseId })}
                                 onReturnComplete={(lease) => mergeLease(lease)}
-                                onActivity={pushActivity}
+                                onActivity={pushViewerActivity}
                               />
                             ) : null}
                           </>
@@ -1406,7 +1548,11 @@ export default function Home() {
 
                 {moreView === 'trust' ? (
                   <div className="mt-6">
-                    <TrustProfilePanel bundle={summaryView.trustBundle} detailMode={detailMode} />
+                    <TrustProfilePanel
+                      bundle={summaryView.trustBundle}
+                      detailMode={detailMode}
+                      defaultPerspective={defaultTrustPerspective}
+                    />
                   </div>
                 ) : null}
 
@@ -1438,7 +1584,7 @@ export default function Home() {
                       <HugMultisigPanel
                         activeLease={demoMode ? null : activeLease}
                         autoRefreshEnabled={autoRefreshEnabled}
-                        onActivity={pushActivity}
+                        onActivity={pushMultisigActivity}
                       />
                     </div>
                   </>
