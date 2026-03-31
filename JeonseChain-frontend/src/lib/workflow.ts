@@ -28,4 +28,6 @@ export type LeaseDraft = {
   depositKRW?: string;
   durationDays?: string;
   txHash?: string;
+  sourceRole?: 'landlord' | 'tenant' | 'viewer';
+  stateNum?: number;
 };

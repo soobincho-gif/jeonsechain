@@ -3,7 +3,7 @@
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount, useChainId, useReadContract, useSwitchChain } from 'wagmi';
+import { useAccount, useChainId, useReadContract, useReadContracts, useSwitchChain } from 'wagmi';
 import AddressSearchPanel from '@/components/AddressSearchPanel';
 import GuidedStoryMode from '@/components/GuidedStoryMode';
 import HeroProtectionScene from '@/components/HeroProtectionScene';
@@ -217,6 +217,8 @@ const MORE_MENU: { key: MoreView; label: string; description: string }[] = [
   },
 ];
 
+const KRW_DECIMALS = BigInt('1000000000000000000');
+
 function withActivityNavigation(
   activity: Omit<ActivityItem, 'id' | 'timestamp'>,
   route: ActivityRoute,
@@ -319,6 +321,13 @@ export default function Home() {
   const selectedPropertyId = useMemo(
     () => (selectedAddress ? derivePropertyIdFromAddress(selectedAddress.roadAddress) : undefined),
     [selectedAddress],
+  );
+  const directoryLeaseIds = useMemo(
+    () =>
+      leaseDirectory
+        .map((lease) => lease.leaseId)
+        .filter((leaseId): leaseId is `0x${string}` => leaseId.startsWith('0x') && leaseId.length === 66),
+    [leaseDirectory],
   );
   const selectedAddressMatchesActiveLease = Boolean(
     activeLease?.propertyId &&
@@ -429,6 +438,46 @@ export default function Home() {
       refetchInterval: autoRefreshEnabled ? 15000 : false,
     },
   });
+
+  const { data: directoryLeaseInfo } = useReadContracts({
+    allowFailure: true,
+    contracts: directoryLeaseIds.map((leaseId) => ({
+      address: CONTRACT_ADDRESSES.JeonseVault,
+      abi: VAULT_ABI,
+      functionName: 'getDepositInfo',
+      args: [leaseId],
+    })),
+    query: {
+      enabled: directoryLeaseIds.length > 0 && !demoMode && !wrongNetwork,
+      refetchInterval: autoRefreshEnabled ? 10000 : false,
+    },
+  });
+
+  const syncedLeaseDirectory = useMemo<LeaseDraft[]>(() => {
+    if (directoryLeaseIds.length === 0) return leaseDirectory;
+
+    const infoMap = new Map<string, NonNullable<typeof directoryLeaseInfo>[number] | undefined>();
+    directoryLeaseIds.forEach((leaseId, index) => {
+      infoMap.set(leaseId, directoryLeaseInfo?.[index]);
+    });
+
+    return leaseDirectory.map((lease) => {
+      const result = infoMap.get(lease.leaseId);
+      if (!result || result.status !== 'success') return lease;
+
+      const info = result.result as unknown as readonly [string, string, bigint, bigint, bigint];
+      const tenant = String(info[0]);
+      if (!isMeaningfulAddress(tenant)) return lease;
+
+      return {
+        ...lease,
+        tenant,
+        landlord: String(info[1]),
+        depositKRW: lease.depositKRW ?? (info[2] / KRW_DECIMALS).toString(),
+        stateNum: Number(info[4]),
+      };
+    });
+  }, [directoryLeaseIds, directoryLeaseInfo, leaseDirectory]);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -851,7 +900,7 @@ export default function Home() {
 
     const nextTab = target.tab ?? 'viewer';
     if (item.leaseId) {
-      mergeLease({ leaseId: item.leaseId }, nextTab);
+      mergeLease({ leaseId: item.leaseId, sourceRole: nextTab }, nextTab);
     } else {
       setSurface('contract');
       setDemoMode(false);
@@ -1442,9 +1491,10 @@ export default function Home() {
                     <div className="px-5 py-6 sm:px-6">
                       {!demoMode ? (
                         <LeaseDirectoryPanel
-                          leases={leaseDirectory}
+                          leases={syncedLeaseDirectory}
                           activeLeaseId={activeLease?.leaseId}
                           activeTab={tab}
+                          connectedAddress={address}
                           onCreateNew={startFreshLease}
                           onOpenLease={openSavedLease}
                         />
@@ -1471,7 +1521,7 @@ export default function Home() {
                                 selectedAddress={selectedAddress}
                                 detailAddress={detailAddress}
                                 oracleRiskPreview={selectedOraclePreview}
-                                onLeaseCreated={(lease) => mergeLease(lease, 'tenant')}
+                                onLeaseCreated={(lease) => mergeLease({ ...lease, sourceRole: 'landlord', stateNum: 0 }, 'tenant')}
                                 onActivity={pushLandlordActivity}
                               />
                             ) : null}
@@ -1479,8 +1529,8 @@ export default function Home() {
                             {tab === 'tenant' ? (
                               <TenantPanel
                                 activeLease={activeLease}
-                                onLeaseSelected={(leaseId) => mergeLease({ leaseId })}
-                                onDepositComplete={(lease) => mergeLease(lease, 'viewer')}
+                                onLeaseSelected={(leaseId) => mergeLease({ leaseId, sourceRole: 'tenant' })}
+                                onDepositComplete={(lease) => mergeLease({ ...lease, sourceRole: 'tenant', stateNum: 1 }, 'viewer')}
                                 onActivity={pushTenantActivity}
                               />
                             ) : null}
@@ -1488,8 +1538,8 @@ export default function Home() {
                             {tab === 'viewer' ? (
                               <LeaseViewer
                                 activeLease={activeLease}
-                                onLeaseSelected={(leaseId) => mergeLease({ leaseId })}
-                                onReturnComplete={(lease) => mergeLease(lease)}
+                                onLeaseSelected={(leaseId) => mergeLease({ leaseId, sourceRole: 'viewer' })}
+                                onReturnComplete={(lease) => mergeLease({ ...lease, sourceRole: 'viewer', stateNum: 4 })}
                                 onActivity={pushViewerActivity}
                               />
                             ) : null}
@@ -1738,12 +1788,14 @@ function LeaseDirectoryPanel({
   leases,
   activeLeaseId,
   activeTab,
+  connectedAddress,
   onCreateNew,
   onOpenLease,
 }: {
   leases: LeaseDraft[];
   activeLeaseId?: string;
   activeTab: Tab;
+  connectedAddress?: string;
   onCreateNew: () => void;
   onOpenLease: (lease: LeaseDraft) => void;
 }) {
@@ -1771,6 +1823,8 @@ function LeaseDirectoryPanel({
         <div className="mt-4 flex flex-wrap gap-3">
           {visibleLeases.map((lease, index) => {
             const active = lease.leaseId === activeLeaseId;
+            const roleMeta = leaseDirectoryRoleMeta(lease, connectedAddress);
+            const statusMeta = leaseDirectoryStatusMeta(lease);
             return (
               <button
                 key={lease.leaseId}
@@ -1782,11 +1836,27 @@ function LeaseDirectoryPanel({
                     : 'border-white/10 bg-slate-950/45 hover:border-white/20 hover:bg-white/[0.04]'
                 }`}
               >
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">계약 {index + 1}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">계약 {index + 1}</p>
+                  {active ? (
+                    <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100">
+                      현재 열람 중
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-2 text-sm font-semibold text-white">
                   {lease.propertyLabel || `leaseId ${formatAddress(lease.leaseId, 8, 6)}`}
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${roleMeta.className}`}>
+                    {roleMeta.label}
+                  </span>
+                  <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusMeta.className}`}>
+                    {statusMeta.label}
+                  </span>
+                </div>
                 <p className="mt-2 text-xs text-slate-400">{formatAddress(lease.leaseId, 10, 8)}</p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">{statusMeta.helper}</p>
               </button>
             );
           })}
@@ -1796,6 +1866,94 @@ function LeaseDirectoryPanel({
       )}
     </div>
   );
+}
+
+function leaseDirectoryRoleMeta(lease: LeaseDraft, connectedAddress?: string) {
+  const normalizedConnected = connectedAddress?.toLowerCase();
+  const landlord = lease.landlord?.toLowerCase();
+  const tenant = lease.tenant?.toLowerCase();
+
+  if (normalizedConnected && landlord && normalizedConnected === landlord) {
+    return {
+      label: '임대인 계약',
+      className: 'border-cyan-300/25 bg-cyan-300/10 text-cyan-100',
+    };
+  }
+
+  if (normalizedConnected && tenant && normalizedConnected === tenant) {
+    return {
+      label: '임차인 계약',
+      className: 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100',
+    };
+  }
+
+  if (lease.sourceRole === 'tenant') {
+    return {
+      label: '임차인 계약',
+      className: 'border-emerald-300/20 bg-emerald-300/10 text-emerald-100',
+    };
+  }
+
+  if (lease.sourceRole === 'landlord') {
+    return {
+      label: '임대인 계약',
+      className: 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100',
+    };
+  }
+
+  return {
+    label: '조회 계약',
+    className: 'border-white/10 bg-white/[0.03] text-slate-300',
+  };
+}
+
+function leaseDirectoryStatusMeta(lease: LeaseDraft) {
+  switch (lease.stateNum) {
+    case 0:
+      return {
+        label: '예치 전',
+        helper: '계약 등록은 끝났고, 이제 임차인 승인과 보증금 예치를 기다리는 단계입니다.',
+        className: 'border-slate-500/30 bg-slate-500/10 text-slate-100',
+      };
+    case 1:
+      return {
+        label: '활성',
+        helper: '보증금 예치가 끝나 실제 보호가 시작된 계약입니다.',
+        className: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100',
+      };
+    case 2:
+      return {
+        label: '위험',
+        helper: '위험 신호가 켜져 일반 반환보다 동결·중재 흐름을 먼저 확인해야 합니다.',
+        className: 'border-rose-400/30 bg-rose-400/10 text-rose-100',
+      };
+    case 3:
+      return {
+        label: '만기',
+        helper: '자동 반환 실행 여부나 퇴실 정산 진입 상태를 확인해야 합니다.',
+        className: 'border-amber-400/30 bg-amber-400/10 text-amber-100',
+      };
+    case 4:
+      return {
+        label: '반환 완료',
+        helper: '보증금 반환이 끝나 계약이 마무리된 상태입니다.',
+        className: 'border-cyan-400/30 bg-cyan-400/10 text-cyan-100',
+      };
+    case 5:
+      return {
+        label: '정산/분쟁',
+        helper: '정산 응답이나 조정 결과 반영을 기다리는 계약입니다.',
+        className: 'border-orange-400/30 bg-orange-400/10 text-orange-100',
+      };
+    default:
+      return {
+        label: lease.txHash ? '등록 직후' : '상태 확인 전',
+        helper: lease.txHash
+          ? '최근 등록 영수증은 있지만, 아직 이 브라우저에서 온체인 상태를 다시 읽기 전입니다.'
+          : '계약을 다시 열면 현재 온체인 상태를 읽어 라벨을 업데이트합니다.',
+        className: 'border-white/10 bg-white/[0.03] text-slate-300',
+      };
+  }
 }
 
 function WorkspaceActionBanner({
