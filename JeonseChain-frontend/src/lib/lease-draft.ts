@@ -61,7 +61,7 @@ export function buildTemporaryJeonseContractDraft(input: TemporaryLeaseDraftInpu
     '3. 전세보증금 및 보호 구조',
     `- 전세보증금: ${formatInputKRW(input.depositKRW)}`,
     `- 보증금은 임차인이 JeonseVault에 예치하는 시점부터 보호가 시작됩니다.`,
-    `- 계약 기간: 임차인 보증금 예치 완료일로부터 ${durationDays}일`,
+    `- 계약 기간: 현재 배포된 컨트랙트 기준 등록 트랜잭션 시점부터 ${durationDays}일`,
     '',
     '4. 반환 및 정산',
     '- 만기 후에는 자동 반환 조건을 우선 확인하고, 필요하면 퇴실 정산 절차로 이어집니다.',

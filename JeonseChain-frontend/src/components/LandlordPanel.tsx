@@ -2,9 +2,9 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { decodeEventLog, isAddress, keccak256, parseEther, toBytes } from 'viem';
-import { CONTRACT_ADDRESSES, VAULT_ABI } from '@/lib/contracts';
+import { CONTRACT_ADDRESSES, ORACLE_ABI, VAULT_ABI } from '@/lib/contracts';
 import { AddressRecord } from '@/lib/demo-data';
 import { digitsOnly, explorerLink, formatInputKRW } from '@/lib/format';
 import {
@@ -45,8 +45,8 @@ export default function LandlordPanel({
   onActivity,
 }: LandlordPanelProps) {
   const { address } = useAccount();
-  const { writeContract, data: hash, isPending } = useWriteContract();
-  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { writeContract, data: hash, isPending, error: writeError } = useWriteContract();
+  const { data: receipt, isLoading: isConfirming, isSuccess, error: receiptError } = useWaitForTransactionReceipt({ hash });
 
   const [form, setForm] = useState({
     tenant: activeLease?.tenant ?? '',
@@ -100,15 +100,27 @@ export default function LandlordPanel({
   const propertyId = derivePropertyIdFromAddress(
     selectedAddress?.roadAddress || normalizedPropertyLabel || 'unknown-property',
   );
+  const { data: propertyDangerous } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseOracle,
+    abi: ORACLE_ABI,
+    functionName: 'isPropertyDangerous',
+    args: [propertyId],
+    query: {
+      enabled: Boolean(propertyId),
+      refetchInterval: 30000,
+    },
+  });
   const tenantValid = isAddress(form.tenant);
   const walletReady = Boolean(address);
+  const blockedByOracle = Boolean(propertyDangerous);
   const canSubmit =
     walletReady &&
     tenantValid &&
     Boolean(normalizedDeposit) &&
     Boolean(normalizedDuration) &&
     Number(normalizedDuration) >= 365 &&
-    Boolean(normalizedPropertyLabel);
+    Boolean(normalizedPropertyLabel) &&
+    !blockedByOracle;
   const previewRiskScore = oracleRiskPreview?.score ?? selectedAddress?.riskScore ?? 0;
   const previewRiskLabel = oracleRiskPreview?.label ?? selectedAddress?.riskLabel ?? 'Monitor';
   const riskMeta = selectedAddress ? getRiskMeta(previewRiskScore, previewRiskLabel) : null;
@@ -295,6 +307,11 @@ export default function LandlordPanel({
               </div>
 
               <p className="mt-4 text-sm leading-6 text-slate-200/90">{riskMeta.description}</p>
+              {blockedByOracle ? (
+                <p className="mt-3 text-sm leading-6 text-rose-100">
+                  현재 온체인 오라클 기준으로는 위험 주소라서, 지금 상태로 `계약 등록 시작`을 누르면 컨트랙트가 등록을 거절합니다.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -439,6 +456,22 @@ export default function LandlordPanel({
               </a>
             ) : null}
           </div>
+          {!blockedByOracle && !tenantValid && form.tenant ? (
+            <p className="mt-3 text-sm text-rose-200">임차인 주소 형식이 맞아야 실제 등록 트랜잭션이 열립니다.</p>
+          ) : null}
+          {!blockedByOracle && normalizedDuration && Number(normalizedDuration) < 365 ? (
+            <p className="mt-3 text-sm text-amber-200">현재 컨트랙트는 최소 365일 계약만 등록할 수 있습니다.</p>
+          ) : null}
+          {blockedByOracle ? (
+            <p className="mt-3 text-sm text-rose-200">
+              등록 차단 사유: 이 propertyId는 현재 `isPropertyDangerous = true` 상태입니다.
+            </p>
+          ) : null}
+          {writeError || receiptError ? (
+            <p className="mt-3 text-sm text-rose-200">
+              등록 오류: {formatContractError(writeError || receiptError)}
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-4">
@@ -454,11 +487,13 @@ export default function LandlordPanel({
           </div>
 
           <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
-            <p className="text-sm font-semibold text-white">등록 후 흐름</p>
+            <p className="text-sm font-semibold text-white">실제 온체인 등록 순서</p>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-              <li>등록 후 leaseId가 자동으로 추출돼 다음 단계로 바로 이어집니다.</li>
-              <li>Etherscan에서 로그를 직접 찾지 않아도 됩니다.</li>
-              <li>선택한 계약은 브라우저에 저장돼 새로고침 후에도 유지됩니다.</li>
+              <li>1. 주소로 propertyId를 만들고, 오라클 위험 주소 여부를 먼저 확인합니다.</li>
+              <li>2. `registerLeaseWithDocuments` 호출로 계약과 문서 해시를 함께 등록합니다.</li>
+              <li>3. 영수증에서 `LeaseRegistered` 이벤트를 읽어 leaseId를 자동 추출합니다.</li>
+              <li>4. 추출된 leaseId를 임차인 화면으로 넘겨 같은 계약을 이어서 보게 합니다.</li>
+              <li>5. 임차인이 예치하면 그때 `ACTIVE` 상태가 되고 보호가 시작됩니다.</li>
             </ul>
           </div>
         </div>
@@ -577,4 +612,12 @@ function getRiskMeta(score: number, label: AddressRecord['riskLabel']) {
     surfaceClass: 'border-emerald-400/20 bg-emerald-400/10',
     badgeClass: 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100',
   };
+}
+
+function formatContractError(error: unknown) {
+  if (!error || typeof error !== 'object') return '알 수 없는 오류가 발생했습니다.';
+
+  const candidate = error as { shortMessage?: string; message?: string };
+  const raw = candidate.shortMessage || candidate.message || '알 수 없는 오류가 발생했습니다.';
+  return raw.replace(/^Error:\s*/i, '');
 }

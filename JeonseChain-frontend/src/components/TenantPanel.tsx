@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
-import { decodeEventLog, parseEther } from 'viem';
+import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { decodeEventLog, parseEther, type Address } from 'viem';
 import { CONTRACT_ADDRESSES, CONTRACT_STATE, ERC20_ABI, STATE_COLOR, VAULT_ABI } from '@/lib/contracts';
 import { explorerLink, formatAddress, formatFullAddress, formatKRW, isMeaningfulAddress } from '@/lib/format';
+import { discoverLatestLeaseForTenant } from '@/lib/lease-discovery';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
 type TenantPanelProps = {
@@ -23,13 +24,17 @@ export default function TenantPanel({
   onActivity,
 }: TenantPanelProps) {
   const { address } = useAccount();
+  const publicClient = usePublicClient();
   const { writeContract, data: hash, isPending } = useWriteContract();
   const { data: receipt, isLoading: isConfirming } = useWaitForTransactionReceipt({ hash });
 
   const [leaseId, setLeaseId] = useState(activeLease?.leaseId ?? '');
   const [leaseAcknowledged, setLeaseAcknowledged] = useState(false);
+  const [autoDiscoveryState, setAutoDiscoveryState] = useState<'idle' | 'searching' | 'found' | 'not-found' | 'error'>('idle');
+  const [autoDiscoveryMessage, setAutoDiscoveryMessage] = useState('');
   const actionRef = useRef<TenantAction>(null);
   const handledReceiptRef = useRef<string | null>(null);
+  const autoDiscoveredLeaseRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!activeLease?.leaseId) return;
@@ -43,6 +48,67 @@ export default function TenantPanel({
   useEffect(() => {
     setLeaseAcknowledged(false);
   }, [normalizedLeaseId]);
+
+  useEffect(() => {
+    const safePublicClient = publicClient;
+
+    if (!address || !safePublicClient) {
+      setAutoDiscoveryState('idle');
+      setAutoDiscoveryMessage('');
+      return;
+    }
+    if (normalizedLeaseId) return;
+
+    let cancelled = false;
+    const currentClient = safePublicClient as NonNullable<typeof safePublicClient>;
+
+    async function runAutoDiscovery() {
+      setAutoDiscoveryState('searching');
+      setAutoDiscoveryMessage('현재 연결 지갑을 임차인 주소로 가진 최근 계약을 체인에서 찾는 중입니다.');
+
+      try {
+        const discovered = await discoverLatestLeaseForTenant(currentClient, address as Address);
+        if (cancelled) return;
+
+        if (!discovered) {
+          setAutoDiscoveryState('not-found');
+          setAutoDiscoveryMessage('현재 연결 지갑을 임차인으로 가진 최근 계약을 찾지 못했어요. 임대인이 전달한 leaseId를 직접 붙여 넣을 수 있습니다.');
+          return;
+        }
+
+        setLeaseId(discovered.leaseId);
+        setAutoDiscoveryState('found');
+        setAutoDiscoveryMessage(
+          `현재 연결 지갑을 임차인으로 가진 최근 계약 ${formatAddress(discovered.leaseId, 10, 8)} 를 자동으로 불러왔어요.`,
+        );
+
+        if (autoDiscoveredLeaseRef.current !== discovered.leaseId) {
+          autoDiscoveredLeaseRef.current = discovered.leaseId;
+          onLeaseSelected(discovered.leaseId);
+          onActivity({
+            title: '내 임차인 계약을 자동으로 찾았어요',
+            description: '연결한 지갑 주소를 기준으로 최근 leaseId를 불러와 임차인 워크스페이스에 연결했습니다.',
+            tone: 'info',
+            leaseId: discovered.leaseId,
+          });
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setAutoDiscoveryState('error');
+        setAutoDiscoveryMessage(
+          error instanceof Error
+            ? `자동 계약 검색 중 오류가 있었어요: ${error.message}`
+            : '자동 계약 검색 중 오류가 있었어요. leaseId를 직접 붙여 넣어도 됩니다.',
+        );
+      }
+    }
+
+    void runAutoDiscovery();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [address, normalizedLeaseId, onActivity, onLeaseSelected, publicClient]);
 
   const { data: leaseInfo } = useReadContract({
     address: CONTRACT_ADDRESSES.JeonseVault,
@@ -108,6 +174,32 @@ export default function TenantPanel({
   const isMintOwner =
     address && mockOwner ? address.toLowerCase() === String(mockOwner).toLowerCase() : false;
   const fundingAmount = expectedDeposit ?? parseEther('1000000000');
+  const approvalBlockedReason =
+    !hasLeaseRecord
+      ? '먼저 유효한 leaseId를 연결해야 합니다.'
+      : !connectedIsTenant
+        ? `현재 연결 지갑이 계약상 임차인 주소 ${formatAddress(tenantAddress)} 와 다릅니다.`
+        : !leaseAcknowledged
+          ? '계약 내용 확인 체크를 먼저 완료해야 합니다.'
+          : !expectedDeposit
+            ? '보증금 정보를 불러오는 중입니다.'
+            : null;
+  const depositBlockedReason =
+    !hasLeaseRecord
+      ? '먼저 유효한 leaseId를 연결해야 합니다.'
+      : stateNum === 1
+        ? '이미 보증금 예치가 끝난 계약입니다.'
+        : stateNum !== 0
+          ? `현재 상태(${CONTRACT_STATE[stateNum] || '미확인'})에서는 새 보증금 예치를 진행할 수 없습니다.`
+          : !connectedIsTenant
+            ? `현재 연결 지갑이 계약상 임차인 주소 ${formatAddress(tenantAddress)} 와 다릅니다.`
+            : !leaseAcknowledged
+              ? '계약 내용 확인 체크를 먼저 완료해야 합니다.'
+              : !approvalReady
+                ? '보증금 예치 전에는 Vault 사용 승인이 먼저 필요합니다.'
+                : !balanceReady
+                  ? `현재 지갑 잔액이 부족합니다. 필요한 금액은 ${formatKRW(expectedDeposit)} 입니다.`
+                  : null;
 
   useEffect(() => {
     if (!receipt || handledReceiptRef.current === receipt.transactionHash) return;
@@ -360,6 +452,11 @@ export default function TenantPanel({
             <p className="mt-3 text-xs text-slate-500">
               등록 단계에서 생성된 leaseId가 자동 입력되며, 다른 계약도 수동으로 조회할 수 있습니다.
             </p>
+            {autoDiscoveryState !== 'idle' ? (
+              <p className={`mt-3 text-xs ${autoDiscoveryState === 'error' ? 'text-rose-200' : autoDiscoveryState === 'found' ? 'text-emerald-200' : 'text-slate-400'}`}>
+                {autoDiscoveryMessage}
+              </p>
+            ) : null}
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -514,6 +611,12 @@ export default function TenantPanel({
               </a>
             ) : null}
           </div>
+          {approvalBlockedReason ? (
+            <p className="mt-3 text-sm text-slate-300">승인 단계 안내: {approvalBlockedReason}</p>
+          ) : null}
+          {depositBlockedReason ? (
+            <p className="mt-2 text-sm text-slate-300">예치 단계 안내: {depositBlockedReason}</p>
+          ) : null}
 
           {isMintOwner && tenantAddress && !connectedIsTenant ? (
             <div className="mt-4 rounded-[20px] border border-teal-300/20 bg-teal-300/10 px-4 py-4">
@@ -530,7 +633,7 @@ export default function TenantPanel({
           <GuideCard
             title="권장 순서"
             lines={[
-              '1. 임대인이 등록한 leaseId를 불러오고, 현재 지갑이 임차인 주소와 일치하는지 봅니다.',
+              '1. 임차인 지갑으로 들어오면 최근 내 계약 leaseId를 자동으로 찾고, 필요하면 직접 leaseId를 붙여 넣습니다.',
               '2. 관리자 지갑이라면 먼저 선택한 임차인 주소에 KRW를 준비하고, 임차인 지갑으로 전환합니다.',
               '3. 계약 내용 확인 체크 후 Vault 사용 승인을 진행합니다.',
               '4. 승인 완료 후 보증금 예치를 실행하면 활성 계약과 모니터링 단계로 넘어갑니다.',
