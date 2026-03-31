@@ -1,5 +1,6 @@
 export type AddressRecord = {
   id: string;
+  postalCode: string;
   roadAddress: string;
   building: string;
   district: string;
@@ -95,6 +96,7 @@ export const SETTLEMENT_STAGE_META: Record<
 export const ADDRESS_BOOK: AddressRecord[] = [
   {
     id: 'mapo-dmc',
+    postalCode: '03925',
     roadAddress: '서울 마포구 월드컵북로 402',
     building: '상암 누리꿈스퀘어 레지던스',
     district: '마포구',
@@ -105,6 +107,7 @@ export const ADDRESS_BOOK: AddressRecord[] = [
   },
   {
     id: 'seongsu',
+    postalCode: '04797',
     roadAddress: '서울 성동구 성수일로 77',
     building: '성수 리버파크 오피스텔',
     district: '성동구',
@@ -115,6 +118,7 @@ export const ADDRESS_BOOK: AddressRecord[] = [
   },
   {
     id: 'songpa',
+    postalCode: '05542',
     roadAddress: '서울 송파구 위례성대로 12',
     building: '잠실 한강뷰 아파트',
     district: '송파구',
@@ -125,6 +129,7 @@ export const ADDRESS_BOOK: AddressRecord[] = [
   },
   {
     id: 'guro',
+    postalCode: '08393',
     roadAddress: '서울 구로구 디지털로 300',
     building: '구로 스마트밸리 주상복합',
     district: '구로구',

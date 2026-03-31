@@ -44,21 +44,13 @@ export default function NotificationCenter({
                     화면 상단 토스트는 잠깐만 보이고, 자세한 기록은 여기에서 확인합니다.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={onClose}
-                    className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300 transition hover:border-cyan-300/30"
-                  >
-                    닫기
-                  </button>
-                  <button
-                    onClick={onClose}
-                    aria-label="알림 센터 닫기"
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-sm text-slate-300 transition hover:border-cyan-300/30 hover:text-white"
-                  >
-                    ×
-                  </button>
-                </div>
+                <button
+                  onClick={onClose}
+                  aria-label="알림 센터 닫기"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-sm text-slate-300 transition hover:border-cyan-300/30 hover:text-white"
+                >
+                  ×
+                </button>
               </div>
 
               <div className="mt-5 flex items-center gap-2 text-xs text-slate-400">

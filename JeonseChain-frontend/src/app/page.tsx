@@ -42,6 +42,7 @@ import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 type Tab = 'landlord' | 'tenant' | 'viewer';
 type Surface = 'landing' | 'experience' | 'contract' | 'more';
 type MoreView = 'signals' | 'trust' | 'activity' | 'data' | 'faq';
+type ContractRoleView = 'landlord' | 'tenant' | 'viewer';
 type WalletViewState =
   | 'wallet-not-connected'
   | 'wallet-connecting'
@@ -81,6 +82,27 @@ type SummaryView = {
 };
 
 const STORAGE_KEY = 'jeonsechain-workspace-v2';
+
+const ROLE_META: Record<
+  ContractRoleView,
+  { label: string; headline: string; description: string }
+> = {
+  landlord: {
+    label: '임대인 화면',
+    headline: '주소 확인 후 계약서를 등록하고 퇴실 정산을 요청합니다',
+    description: '임대인은 주소 선택, 계약 등록, 문서 해시 첨부, 퇴실 정산 청구까지 관리합니다.',
+  },
+  tenant: {
+    label: '임차인 화면',
+    headline: '보증금 예치와 응답, 반환 흐름을 확인합니다',
+    description: '임차인은 KRW 예치, 정산 응답, 반환 완료 여부를 같은 화면 안에서 확인합니다.',
+  },
+  viewer: {
+    label: '계약 조회 화면',
+    headline: '양방향 계약 상태와 위험 신호를 함께 봅니다',
+    description: '실시간 상태, 오라클 신호, 계약 변경, 퇴실 정산 결과를 통합해서 확인합니다.',
+  },
+};
 
 const TAB_META: Record<
   Tab,
@@ -166,12 +188,14 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [selectedAddress, setSelectedAddress] = useState<AddressRecord | null>(ADDRESS_BOOK[0]);
+  const [detailAddress, setDetailAddress] = useState('');
   const [selectedDemoId, setSelectedDemoId] = useState(DEMO_LEASES[0].id);
   const [settlementDemoStatus, setSettlementDemoStatus] = useState<SettlementStatus>(
     DEMO_LEASES.find((item) => item.id === 'settlement-contract')?.settlementStatus ?? '임차인 응답 대기',
   );
   const [demoMode, setDemoMode] = useState(true);
   const [registrationIntent, setRegistrationIntent] = useState(false);
+  const [contractRoleView, setContractRoleView] = useState<ContractRoleView>('landlord');
   const [highlightedSection, setHighlightedSection] = useState<'demo' | 'workspace' | 'settlement' | null>(null);
   const guidedDemoRef = useRef<HTMLDivElement | null>(null);
   const settlementRef = useRef<HTMLDivElement | null>(null);
@@ -233,11 +257,13 @@ export default function Home() {
           activeLease: LeaseDraft | null;
           activities: ActivityItem[];
           selectedAddressId?: string;
+          detailAddress?: string;
           demoMode?: boolean;
           selectedDemoId?: string;
           autoRefreshEnabled?: boolean;
           settlementDemoStatus?: SettlementStatus;
           registrationIntent?: boolean;
+          contractRoleView?: ContractRoleView;
         };
 
         setActiveLease(parsed.activeLease);
@@ -248,6 +274,8 @@ export default function Home() {
 
         const storedAddress = ADDRESS_BOOK.find((item) => item.id === parsed.selectedAddressId);
         if (storedAddress) setSelectedAddress(storedAddress);
+        setDetailAddress(parsed.detailAddress ?? '');
+        setContractRoleView(parsed.contractRoleView ?? 'landlord');
 
         if (parsed.selectedDemoId && DEMO_LEASES.some((item) => item.id === parsed.selectedDemoId)) {
           setSelectedDemoId(parsed.selectedDemoId);
@@ -270,17 +298,21 @@ export default function Home() {
         activeLease,
         activities,
         selectedAddressId: selectedAddress?.id,
+        detailAddress,
         demoMode,
         selectedDemoId,
         autoRefreshEnabled,
         settlementDemoStatus,
         registrationIntent,
+        contractRoleView,
       }),
     );
   }, [
     activeLease,
     activities,
     autoRefreshEnabled,
+    contractRoleView,
+    detailAddress,
     demoMode,
     hydrated,
     selectedAddress,
@@ -317,6 +349,7 @@ export default function Home() {
   const selectedDemo = DEMO_LEASES.find((item) => item.id === selectedDemoId) ?? DEMO_LEASES[0];
   const selectedDemoAddress =
     selectedAddress ?? ADDRESS_BOOK.find((item) => item.id === selectedDemo.addressId) ?? ADDRESS_BOOK[0];
+  const contractRoleMeta = ROLE_META[contractRoleView];
 
   const summaryView = useMemo<SummaryView>(() => {
     if (liveInfo && liveLeaseData && !demoMode) {
@@ -330,11 +363,12 @@ export default function Home() {
     }
 
     if (!demoMode) {
-      return buildRegisterSummary(selectedAddress ?? selectedDemoAddress);
+      return buildRegisterSummary(selectedAddress ?? selectedDemoAddress, detailAddress);
     }
 
     return buildDemoSummary(selectedDemo, selectedDemoAddress, settlementDemoStatus);
   }, [
+    detailAddress,
     activeLease,
     demoMode,
     liveInfo,
@@ -368,7 +402,10 @@ export default function Home() {
       ...(current ?? { leaseId: next.leaseId }),
       ...next,
     }));
-    if (nextTab) setTab(nextTab);
+    if (nextTab) {
+      setTab(nextTab);
+      setContractRoleView(nextTab);
+    }
   }
 
   function selectDemoLease(demoId: string) {
@@ -381,6 +418,7 @@ export default function Home() {
     setSelectedDemoId(demoId);
     setSettlementDemoStatus(demo.scenario === 'settlement' ? demo.settlementStatus : '정산 없음');
     setTab('viewer');
+    setContractRoleView('viewer');
     const addressItem = ADDRESS_BOOK.find((item) => item.id === demo.addressId);
     if (addressItem) setSelectedAddress(addressItem);
     pushActivity({
@@ -402,6 +440,7 @@ export default function Home() {
     setDemoMode(false);
     setRegistrationIntent(nextTab === 'landlord');
     setTab(nextTab);
+    setContractRoleView(nextTab);
     scrollToSection(workspaceRef, 'workspace');
   }
 
@@ -429,7 +468,9 @@ export default function Home() {
     setSurface('contract');
     setDemoMode(false);
     setRegistrationIntent(!activeLeaseReady);
-    setTab(activeLeaseReady ? 'viewer' : 'landlord');
+    const nextTab = activeLeaseReady ? 'viewer' : 'landlord';
+    setTab(nextTab);
+    setContractRoleView(nextTab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -545,7 +586,7 @@ export default function Home() {
           ) : null}
         </div>
 
-        <nav className="mt-6 flex flex-wrap items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/45 px-4 py-3">
+        <nav className="sticky top-3 z-30 mt-6 flex flex-wrap items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/80 px-4 py-3 shadow-[0_18px_60px_rgba(2,6,23,0.28)] backdrop-blur-xl">
           <TopNavButton
             active={surface === 'experience'}
             label="체험하기"
@@ -796,6 +837,31 @@ export default function Home() {
                       <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-400">
                         연결 상태 {WALLET_STATE_LABEL[walletState]}
                       </span>
+                      <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-xs text-cyan-100">
+                        현재 역할 보기: {contractRoleMeta.label}
+                      </span>
+                    </div>
+
+                    <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">역할 전환</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(Object.keys(ROLE_META) as ContractRoleView[]).map((key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => openWorkspaceTab(key)}
+                            className={`rounded-full px-4 py-2 text-sm transition ${
+                              contractRoleView === key
+                                ? 'bg-cyan-300 text-slate-950'
+                                : 'border border-white/10 bg-white/[0.03] text-slate-200 hover:border-cyan-300/30 hover:bg-white/[0.05]'
+                            }`}
+                          >
+                            {ROLE_META[key].label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-sm font-semibold text-white">{contractRoleMeta.headline}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-300">{contractRoleMeta.description}</p>
                     </div>
 
                     <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -820,9 +886,11 @@ export default function Home() {
                 <div className="mt-6">
                   <AddressSearchPanel
                     selectedAddress={selectedAddress}
+                    detailAddress={detailAddress}
                     onSelect={(record) => {
                       setSelectedAddress(record);
                     }}
+                    onDetailAddressChange={setDetailAddress}
                   />
                 </div>
 
@@ -881,10 +949,11 @@ export default function Home() {
                                 activeLease={activeLease}
                                 suggestedPropertyLabel={
                                   selectedAddress
-                                    ? `${selectedAddress.roadAddress} | ${selectedAddress.building}`
+                                    ? buildPropertyLabel(selectedAddress, detailAddress)
                                     : undefined
                                 }
                                 selectedAddress={selectedAddress}
+                                detailAddress={detailAddress}
                                 onLeaseCreated={(lease) => mergeLease(lease, 'tenant')}
                                 onActivity={pushActivity}
                               />
@@ -1481,11 +1550,28 @@ function toneDot(tone: ActivityItem['tone']) {
   return 'bg-cyan-300';
 }
 
-function buildRegisterSummary(addressItem: AddressRecord): SummaryView {
+function buildAddressLine(addressItem: AddressRecord, detailAddress?: string) {
+  return detailAddress
+    ? `${addressItem.roadAddress}, ${detailAddress}`
+    : addressItem.roadAddress;
+}
+
+function buildPropertyLabel(addressItem: AddressRecord, detailAddress?: string) {
+  return [
+    addressItem.postalCode,
+    addressItem.roadAddress,
+    addressItem.building,
+    detailAddress?.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(' | ');
+}
+
+function buildRegisterSummary(addressItem: AddressRecord, detailAddress?: string): SummaryView {
   return {
     title: '새 전세 계약 등록 준비',
-    addressLine: addressItem.roadAddress,
-    buildingLabel: `${addressItem.building} · 주소 선택 완료`,
+    addressLine: buildAddressLine(addressItem, detailAddress),
+    buildingLabel: `${addressItem.building} · 우편번호 ${addressItem.postalCode}`,
     depositLabel: '보증금 입력 전',
     protectionPercent: 0,
     remainingLabel: '-',
@@ -1522,7 +1608,7 @@ function buildDemoSummary(
   return {
     title: '내 전세 계약 요약',
     addressLine: addressItem.roadAddress,
-    buildingLabel: addressItem.building,
+    buildingLabel: `${addressItem.building} · 우편번호 ${addressItem.postalCode}`,
     depositLabel: demo.depositText,
     protectionPercent: Number(demo.protectionRatio.replace('%', '')),
     remainingLabel: `${demo.remainingDays}일`,

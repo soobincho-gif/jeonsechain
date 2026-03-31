@@ -13,6 +13,7 @@ type LandlordPanelProps = {
   activeLease: LeaseDraft | null;
   suggestedPropertyLabel?: string;
   selectedAddress?: AddressRecord | null;
+  detailAddress?: string;
   onLeaseCreated: (lease: LeaseDraft) => void;
   onActivity: (activity: Omit<ActivityItem, 'id' | 'timestamp'>) => void;
 };
@@ -32,6 +33,7 @@ export default function LandlordPanel({
   activeLease,
   suggestedPropertyLabel,
   selectedAddress,
+  detailAddress,
   onLeaseCreated,
   onActivity,
 }: LandlordPanelProps) {
@@ -240,6 +242,12 @@ export default function LandlordPanel({
                     {selectedAddress.roadAddress}
                     <span className="mx-2 text-slate-500">·</span>
                     {selectedAddress.building}
+                    {detailAddress ? (
+                      <>
+                        <span className="mx-2 text-slate-500">·</span>
+                        {detailAddress}
+                      </>
+                    ) : null}
                   </p>
                 </div>
                 <span className={`self-start rounded-full border px-3 py-1 text-xs font-semibold ${riskMeta.badgeClass}`}>
@@ -247,7 +255,8 @@ export default function LandlordPanel({
                 </span>
               </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <SummaryRow label="우편번호" value={selectedAddress.postalCode} />
                 <SummaryRow label="현재 위험 점수" value={`${selectedAddress.riskScore}점`} />
                 <SummaryRow label="추천 판단" value={riskMeta.recommendation} />
                 <SummaryRow label="권장 액션" value={riskMeta.nextAction} />

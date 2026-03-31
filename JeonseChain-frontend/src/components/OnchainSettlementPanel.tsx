@@ -54,6 +54,12 @@ const CATEGORY_OPTIONS = [
   { value: '3', label: '공과금/관리비', hint: '최대 50만 원' },
 ] as const;
 
+const INSPECTION_CHECKLIST = [
+  '현장 사진 촬영 완료',
+  '청소·파손 항목 확인 완료',
+  '공과금·관리비 정산 여부 확인 완료',
+] as const;
+
 function hashText(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -91,6 +97,11 @@ export default function OnchainSettlementPanel({
   const [responseMemo, setResponseMemo] = useState('청소비 일부만 수락하고 나머지는 이의 제기');
   const [resolutionAmount, setResolutionAmount] = useState('900000');
   const [resolutionMemo, setResolutionMemo] = useState('HUG 조정 결과 반영');
+  const [inspectionChecks, setInspectionChecks] = useState<Record<(typeof INSPECTION_CHECKLIST)[number], boolean>>({
+    '현장 사진 촬영 완료': false,
+    '청소·파손 항목 확인 완료': false,
+    '공과금·관리비 정산 여부 확인 완료': false,
+  });
 
   const settlement = settlementInfo as
     | readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, `0x${string}`, `0x${string}`, `0x${string}`]
@@ -142,6 +153,7 @@ export default function OnchainSettlementPanel({
     responseDeadline !== undefined &&
     responseDeadline > BigInt(0) &&
     nowSec > responseDeadline;
+  const inspectionReady = INSPECTION_CHECKLIST.every((label) => inspectionChecks[label]);
 
   useEffect(() => {
     setUploadedEvidence(null);
@@ -441,7 +453,7 @@ export default function OnchainSettlementPanel({
         <div>
           <p className="text-sm font-semibold text-white">실제 온체인 퇴실 정산</p>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            방금 배포한 Sepolia 정산 모듈에 직접 연결된 영역입니다. 데모가 아니라 실제 트랜잭션으로 퇴실 요청, 정산 청구, 임차인 응답, HUG 배분을 실행합니다.
+            방금 배포한 Sepolia 정산 모듈에 직접 연결된 영역입니다. 데모가 아니라 실제 트랜잭션으로 퇴실 요청, 사진·문서 증빙 업로드, 정산 청구, 임차인 응답, HUG 배분까지 이어집니다.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -478,6 +490,33 @@ export default function OnchainSettlementPanel({
       </div>
 
       <div className="mt-5 space-y-4">
+        <ActionBlock
+          title="퇴실 점검 흐름"
+          description="일반 사용자 입장에서는 이 화면 안에서 퇴실 점검 체크, 사진·문서 업로드, 정산 요청, 응답, 최종 배분까지 이어집니다. 현재는 사진 자동 판독 오라클보다 증빙 업로드와 해시 기록 중심입니다."
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            {INSPECTION_CHECKLIST.map((label) => (
+              <label
+                key={label}
+                className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-200"
+              >
+                <input
+                  type="checkbox"
+                  checked={inspectionChecks[label]}
+                  onChange={() =>
+                    setInspectionChecks((current) => ({
+                      ...current,
+                      [label]: !current[label],
+                    }))
+                  }
+                  className="h-4 w-4 rounded border-white/20 bg-slate-900"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </ActionBlock>
+
         {canRequestMoveOut ? (
           <ActionBlock
             title="1. 퇴실 요청 시작"
@@ -496,7 +535,7 @@ export default function OnchainSettlementPanel({
         {settlementStatusNum === 1 && isLandlord ? (
           <ActionBlock
             title="2. 임대인 정산 청구"
-            description="청소비, 시설 파손, 공과금 등 제한된 범위에서만 정산 청구를 올릴 수 있습니다. 증빙 메모는 bytes32 해시로 변환되어 저장됩니다."
+            description="청소비, 시설 파손, 공과금 등 제한된 범위에서만 정산 청구를 올릴 수 있습니다. 퇴실 점검과 사진·문서 증빙을 올린 뒤 정산 요청으로 이어집니다."
           >
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block">
@@ -639,7 +678,7 @@ export default function OnchainSettlementPanel({
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 onClick={handleClaim}
-                disabled={!digitsOnly(claimAmount) || !uploadedEvidence?.bundleHash || isPending || isConfirming}
+                disabled={!inspectionReady || !digitsOnly(claimAmount) || !uploadedEvidence?.bundleHash || isPending || isConfirming}
                 className="rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {isPending ? '지갑 승인 대기...' : isConfirming ? '청구 확인 중...' : '정산 청구 제출'}
@@ -647,7 +686,7 @@ export default function OnchainSettlementPanel({
             </div>
             {!uploadedEvidence ? (
               <p className="mt-3 text-xs text-slate-400">
-                정산 청구 전에는 최소 1개 이상의 증빙 파일을 업로드해 번들 해시를 만들어야 합니다.
+                정산 청구 전에는 퇴실 점검 체크를 마치고, 최소 1개 이상의 증빙 파일을 업로드해 번들 해시를 만들어야 합니다.
               </p>
             ) : null}
           </ActionBlock>

@@ -221,9 +221,9 @@ export default function OnchainLeaseChangePanel({
     <div className="mt-5 rounded-[24px] border border-white/10 bg-slate-950/45 p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-white">계약 변경 시나리오</p>
+          <p className="text-sm font-semibold text-white">양측 확인 계약 변경</p>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            중도 해지와 연장은 둘 다 상대방 승인 전까지는 확정되지 않습니다. 연장은 만기일을 늘리고, 중도 해지는 곧바로 퇴실 정산 윈도우를 엽니다.
+            중도 해지와 연장은 둘 다 상대방 승인 전까지는 확정되지 않습니다. 한쪽이 제안하고, 반대 당사자가 승인해야만 실제 체인 상태가 바뀝니다.
           </p>
         </div>
         <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-slate-200">

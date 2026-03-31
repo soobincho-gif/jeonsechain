@@ -5,12 +5,16 @@ import { ADDRESS_BOOK, AddressRecord } from '@/lib/demo-data';
 
 type AddressSearchPanelProps = {
   selectedAddress: AddressRecord | null;
+  detailAddress: string;
   onSelect: (record: AddressRecord) => void;
+  onDetailAddressChange: (value: string) => void;
 };
 
 export default function AddressSearchPanel({
   selectedAddress,
+  detailAddress,
   onSelect,
+  onDetailAddressChange,
 }: AddressSearchPanelProps) {
   const [query, setQuery] = useState(selectedAddress?.roadAddress ?? '');
   const mapEmbedUrl = useMemo(() => buildMapEmbedUrl(selectedAddress), [selectedAddress]);
@@ -95,6 +99,7 @@ export default function AddressSearchPanel({
                     <RiskBadge score={item.riskScore} label={item.riskLabel} />
                   </div>
                   <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+                    <span>우편번호 {item.postalCode}</span>
                     <span>{item.district}</span>
                     <span>{item.lat.toFixed(3)}, {item.lng.toFixed(3)}</span>
                     <span>{selected ? '선택됨' : '선택 가능'}</span>
@@ -102,6 +107,30 @@ export default function AddressSearchPanel({
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
+            <label className="block">
+              <span className="text-sm font-medium text-slate-200">우편번호</span>
+              <div className="mt-3 rounded-[24px] border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-white">
+                {selectedAddress?.postalCode ?? '주소 선택 후 표시'}
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-200">상세주소</span>
+              <div className="mt-3 flex items-center gap-3 rounded-[24px] border border-white/10 bg-slate-950/50 px-4 py-3">
+                <span className="text-lg">⌂</span>
+                <input
+                  value={detailAddress}
+                  onChange={(event) => onDetailAddressChange(event.target.value)}
+                  placeholder="예: 101동 1203호"
+                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                />
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                실제 계약서에 들어갈 동·호수까지 함께 적어두면 등록 라벨과 계약 요약 카드에 같이 반영됩니다.
+              </p>
+            </label>
           </div>
         </div>
 
@@ -141,7 +170,10 @@ export default function AddressSearchPanel({
                   </div>
                   <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
                     <p className="text-sm font-semibold text-white">{selectedAddress.roadAddress}</p>
-                    <p className="mt-1 text-xs text-slate-400">{selectedAddress.building}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {selectedAddress.building}
+                      {detailAddress ? ` · ${detailAddress}` : ''}
+                    </p>
                   </div>
                 </>
               ) : (
@@ -155,7 +187,7 @@ export default function AddressSearchPanel({
           <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
             <p className="text-sm font-medium text-white">계약 등록으로 이어집니다</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              선택한 주소는 아래 워크스페이스 1단계에 자동으로 불러와져 계약 등록 입력을 빠르게 시작할 수 있습니다.
+              선택한 주소와 상세주소는 아래 워크스페이스 1단계에 자동으로 불러와져 계약 등록 입력을 빠르게 시작할 수 있습니다.
             </p>
             {selectedAddress ? (
               <a
