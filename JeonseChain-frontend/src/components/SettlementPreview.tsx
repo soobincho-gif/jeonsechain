@@ -39,6 +39,7 @@ export default function SettlementPreview({
   const holdPercent = deposit > 0 ? Math.round((heldAmount / deposit) * 100) : 0;
   const deductedPercent = deposit > 0 ? Math.max(0, 100 - instantPercent - holdPercent) : 0;
   const isSettlementDemo = isDemoMode && scenario === 'settlement';
+  const sceneMeta = settlementSceneMeta(settlementStatus);
 
   return (
     <section className="glass-card overflow-hidden p-5 sm:p-6">
@@ -168,20 +169,21 @@ export default function SettlementPreview({
             />
           </div>
 
-          <div className="mt-5 rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4">
-            <p className="text-sm font-semibold text-white">{stageMeta.headline}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-200">{stageMeta.description}</p>
-            <div className="settlement-people mt-4" aria-hidden="true">
-              <div className="settlement-people__party">
-                <span className="settlement-people__head" />
-                <span className="settlement-people__body" />
-                <span className="settlement-people__label">임대인</span>
-              </div>
-              <div className={`settlement-people__status settlement-people__status--${stageTone(settlementStatus)}`}>
-                {settlementMotionLabel(settlementStatus)}
-              </div>
-              <div className="settlement-people__party settlement-people__party--tenant">
-                <span className="settlement-people__head" />
+        <div className="mt-5 rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4">
+          <p className="text-sm font-semibold text-white">{stageMeta.headline}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-200">{stageMeta.description}</p>
+          <div className={`settlement-people settlement-people--${sceneMeta.tone} mt-4`} aria-hidden="true">
+            <div className="settlement-people__party">
+              <span className="settlement-people__head" />
+              <span className="settlement-people__body" />
+              <span className="settlement-people__label">임대인</span>
+            </div>
+            <div className={`settlement-people__status settlement-people__status--${sceneMeta.tone}`}>
+              <span className="settlement-people__status-label">{sceneMeta.label}</span>
+              <span className="settlement-people__status-copy">{sceneMeta.helper}</span>
+            </div>
+            <div className="settlement-people__party settlement-people__party--tenant">
+              <span className="settlement-people__head" />
                 <span className="settlement-people__body" />
                 <span className="settlement-people__label">임차인</span>
               </div>
@@ -279,15 +281,34 @@ function CategoryRow({ label, limit }: { label: string; limit: string }) {
   );
 }
 
-function stageTone(status: SettlementStatus) {
-  if (status === '최종 정산 완료') return 'done';
-  if (status === '조정 진행') return 'warning';
-  return 'active';
-}
+function settlementSceneMeta(status: SettlementStatus) {
+  if (status === '정산 요청 접수') {
+    return {
+      label: '증빙 검토 중',
+      helper: '임대인이 사진과 문서를 올리고 보류 금액 초안을 만드는 단계',
+      tone: 'active',
+    } as const;
+  }
 
-function settlementMotionLabel(status: SettlementStatus) {
-  if (status === '정산 요청 접수') return '정산 요청';
-  if (status === '임차인 응답 대기') return '응답 대기';
-  if (status === '조정 진행') return '일부 보류';
-  return '정산 완료';
+  if (status === '임차인 응답 대기') {
+    return {
+      label: '임차인 응답 대기',
+      helper: '무분쟁 금액은 정리되고, 분쟁 가능 금액만 소액 보류된 상태',
+      tone: 'monitor',
+    } as const;
+  }
+
+  if (status === '조정 진행') {
+    return {
+      label: 'HUG 조정 진행',
+      helper: '자동 확정 대신 외부 검토 결과를 기다리는 단계',
+      tone: 'warning',
+    } as const;
+  }
+
+  return {
+    label: '정산 완료',
+    helper: '차감 금액만 반영되고 나머지는 반환이 끝난 상태',
+    tone: 'done',
+  } as const;
 }

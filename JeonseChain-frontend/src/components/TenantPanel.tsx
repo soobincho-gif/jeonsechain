@@ -27,16 +27,22 @@ export default function TenantPanel({
   const { data: receipt, isLoading: isConfirming } = useWaitForTransactionReceipt({ hash });
 
   const [leaseId, setLeaseId] = useState(activeLease?.leaseId ?? '');
+  const [leaseAcknowledged, setLeaseAcknowledged] = useState(false);
   const actionRef = useRef<TenantAction>(null);
   const handledReceiptRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!activeLease?.leaseId) return;
     setLeaseId(activeLease.leaseId);
+    setLeaseAcknowledged(false);
   }, [activeLease?.leaseId]);
 
   const normalizedLeaseId = leaseId.trim();
   const isLeaseIdReady = normalizedLeaseId.startsWith('0x') && normalizedLeaseId.length === 66;
+
+  useEffect(() => {
+    setLeaseAcknowledged(false);
+  }, [normalizedLeaseId]);
 
   const { data: leaseInfo } = useReadContract({
     address: CONTRACT_ADDRESSES.JeonseVault,
@@ -182,6 +188,7 @@ export default function TenantPanel({
 
   function pinLease() {
     if (!isLeaseIdReady) return;
+    setLeaseAcknowledged(false);
     onLeaseSelected(normalizedLeaseId);
     onActivity({
       title: '계약을 임차인 워크스페이스에 연결했어요',
@@ -249,14 +256,50 @@ export default function TenantPanel({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-teal-200/80">Tenant Workspace</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">임차인 승인 및 보증금 납입</h3>
+              <h3 className="mt-2 text-2xl font-semibold text-white">임차인 확인 및 보증금 예치</h3>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                임대인 단계에서 생성된 leaseId를 자동으로 받아오고, 현재 연결 지갑이 실제 임차인인지 먼저 확인한 뒤 승인과 입금을 진행합니다.
+                임대인이 먼저 등록한 leaseId를 가져와 계약 내용을 확인하고, 실제 임차인 지갑에서 승인과 보증금 예치를 마치면 계약이 활성 상태로 넘어갑니다.
               </p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
-              leaseId 자동 연동
+              임대인 등록 → 임차인 확인 → 예치 → 활성 계약
             </span>
+          </div>
+
+          <div className="mt-5 rounded-[24px] border border-white/10 bg-slate-900/55 p-4">
+            <p className="text-sm font-semibold text-white">양방향 계약 흐름</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              {[
+                {
+                  step: '1',
+                  title: '임대인 등록',
+                  copy: '주소와 조건을 등록해 leaseId를 생성합니다.',
+                },
+                {
+                  step: '2',
+                  title: '임차인 확인',
+                  copy: '임차인이 같은 leaseId와 주소를 보고 동의합니다.',
+                },
+                {
+                  step: '3',
+                  title: '승인·예치',
+                  copy: 'Vault 사용 승인 후 보증금을 실제로 넣습니다.',
+                },
+                {
+                  step: '4',
+                  title: '활성 계약',
+                  copy: '예치가 끝나면 모니터링과 반환 흐름이 시작됩니다.',
+                },
+              ].map((item) => (
+                <div key={item.step} className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-300/10 text-xs font-semibold text-cyan-100">
+                    {item.step}
+                  </span>
+                  <p className="mt-3 text-sm font-semibold text-white">{item.title}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">{item.copy}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-900/60 p-4">
@@ -283,7 +326,7 @@ export default function TenantPanel({
             </p>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <StatusCard label="내 KRW 잔액" value={formatKRW(krwBalance)} helper="현재 연결 지갑 기준" />
             <StatusCard
               label="Vault 승인 상태"
@@ -296,6 +339,12 @@ export default function TenantPanel({
               value={connectedIsTenant ? '지갑 일치' : '주소 확인 필요'}
               helper={leaseInfo ? formatAddress(String(leaseInfo[0])) : '계약 조회 전'}
               tone={connectedIsTenant ? 'success' : 'warning'}
+            />
+            <StatusCard
+              label="계약 내용 확인"
+              value={leaseAcknowledged ? '확인 완료' : '확인 필요'}
+              helper="임대인이 등록한 계약 조건을 보고 동의해야 다음 단계가 열립니다."
+              tone={leaseAcknowledged ? 'success' : 'warning'}
             />
           </div>
 
@@ -315,12 +364,29 @@ export default function TenantPanel({
                 <ContractRow label="shares 발행량" value={leaseData ? Number(leaseData[7]).toLocaleString('ko-KR') : '조회 중'} />
                 <ContractRow label="margin call" value={leaseData?.[8] ? '발생' : '정상'} />
               </div>
+
+              <label className="mt-4 flex items-start gap-3 rounded-[20px] border border-white/10 bg-slate-950/45 px-4 py-4">
+                <input
+                  type="checkbox"
+                  checked={leaseAcknowledged}
+                  onChange={(event) => setLeaseAcknowledged(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-white/20 bg-slate-950 text-cyan-300 focus:ring-cyan-300/40"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-white">
+                    임대인이 올린 계약 내용과 주소를 확인했고, 이 leaseId로 승인과 보증금 예치를 진행하는 데 동의합니다.
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-400">
+                    임차인 확인은 해약·연장처럼 이후 양방향 합의가 필요한 흐름의 시작점이기도 합니다.
+                  </span>
+                </span>
+              </label>
             </div>
           ) : (
             <div className="mt-5 rounded-[24px] border border-dashed border-white/10 bg-slate-950/35 px-5 py-10 text-center">
               <p className="text-sm font-medium text-white">계약을 선택하면 보증금과 임차인 주소를 바로 보여드립니다.</p>
               <p className="mt-2 text-sm leading-6 text-slate-400">
-                등록 단계에서 생성된 leaseId가 있다면 그대로 사용하고, 없다면 수동으로 입력해서 연결할 수 있습니다.
+                임대인이 먼저 등록한 leaseId가 있다면 그대로 사용하고, 없다면 임대인 단계에서 생성된 뒤 다시 연결하면 됩니다.
               </p>
             </div>
           )}
@@ -342,7 +408,7 @@ export default function TenantPanel({
 
             <button
               onClick={handleApprove}
-              disabled={!expectedDeposit || !connectedIsTenant || isPending || isConfirming}
+              disabled={!expectedDeposit || !connectedIsTenant || !leaseAcknowledged || isPending || isConfirming}
               className="rounded-full bg-teal-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
               {isPending && actionRef.current === 'approve'
@@ -359,6 +425,7 @@ export default function TenantPanel({
                 !approvalReady ||
                 !balanceReady ||
                 !connectedIsTenant ||
+                !leaseAcknowledged ||
                 stateNum !== 0 ||
                 isPending ||
                 isConfirming
@@ -389,17 +456,17 @@ export default function TenantPanel({
           <GuideCard
             title="권장 순서"
             lines={[
-              '1. leaseId를 확인하고 현재 지갑이 임차인 주소와 일치하는지 봅니다.',
-              '2. 필요하면 KRW (테스트넷)를 준비하고 Vault 사용 승인을 진행합니다.',
-              '3. 승인 완료 후 보증금 입금을 실행하면 모니터링 단계로 넘어갑니다.',
+              '1. 임대인이 등록한 leaseId를 불러오고, 현재 지갑이 임차인 주소와 일치하는지 봅니다.',
+              '2. 계약 내용 확인 체크 후 KRW (테스트넷) 준비와 Vault 사용 승인을 진행합니다.',
+              '3. 승인 완료 후 보증금 예치를 실행하면 활성 계약과 모니터링 단계로 넘어갑니다.',
             ]}
           />
           <GuideCard
-            title="실패 줄이기"
+            title="양방향 합의가 필요한 이유"
             lines={[
-              '계약 상태가 `등록됨`이 아닐 때는 입금이 막힙니다.',
-              '승인 금액은 해당 계약의 보증금 금액만큼만 요청합니다.',
-              '현재 연결 지갑이 계약상 임차인이 아니면 버튼을 비활성화합니다.',
+              '계약 상태가 `등록됨`이 아닐 때는 예치가 막혀 임대인 등록 없이 바로 진행되지 않습니다.',
+              '중도 해지나 계약 연장은 한쪽 요청만으로 확정되지 않고, 반대 당사자 승인 뒤에만 상태가 바뀝니다.',
+              '승인 금액은 해당 계약의 보증금만큼만 요청하고, 계약상 임차인 지갑이 아니면 버튼을 비활성화합니다.',
             ]}
           />
         </div>

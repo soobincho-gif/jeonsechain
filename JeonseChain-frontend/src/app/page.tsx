@@ -94,8 +94,8 @@ const ROLE_META: Record<
   },
   tenant: {
     label: '임차인 화면',
-    headline: '보증금 예치와 응답, 반환 흐름을 확인합니다',
-    description: '임차인은 KRW 예치, 정산 응답, 반환 완료 여부를 같은 화면 안에서 확인합니다.',
+    headline: '임대인이 등록한 계약을 확인하고 승인·예치합니다',
+    description: '임차인은 같은 leaseId의 계약 내용을 확인한 뒤 보증금 예치, 정산 응답, 반환 완료 여부를 관리합니다.',
   },
   viewer: {
     label: '계약 조회 화면',
@@ -117,8 +117,8 @@ const TAB_META: Record<
   tenant: {
     label: '보증금 예치',
     eyebrow: '2단계',
-    title: '임차인 승인과 입금을 한 흐름으로 처리',
-    description: '선택된 leaseId를 자동으로 이어받아 승인과 예치를 자연스럽게 진행합니다.',
+    title: '임차인이 계약 내용을 확인하고 보증금을 예치',
+    description: '임대인이 생성한 leaseId를 자동으로 이어받아 계약 확인, 승인, 예치를 순서대로 진행합니다.',
   },
   viewer: {
     label: '내 계약 모니터링',
@@ -197,6 +197,7 @@ export default function Home() {
   const [registrationIntent, setRegistrationIntent] = useState(false);
   const [contractRoleView, setContractRoleView] = useState<ContractRoleView>('landlord');
   const [highlightedSection, setHighlightedSection] = useState<'demo' | 'workspace' | 'settlement' | null>(null);
+  const [scrollY, setScrollY] = useState(0);
   const guidedDemoRef = useRef<HTMLDivElement | null>(null);
   const settlementRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<HTMLElement | null>(null);
@@ -288,6 +289,13 @@ export default function Home() {
       }
     }
     setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   useEffect(() => {
@@ -499,6 +507,8 @@ export default function Home() {
   ];
 
   const unreadCount = activities.filter((item) => item.timestamp > lastSeenAt).length;
+  const showQuickNav = scrollY > 280;
+  const showScrollTop = scrollY > 540;
   const contextualAction = getContextualAction(walletState, summaryView, {
     onOpenDemo: openDemoSelector,
     onSwitchNetwork: () => switchChain({ chainId: CHAIN_ID }),
@@ -586,7 +596,11 @@ export default function Home() {
           ) : null}
         </div>
 
-        <nav className="sticky top-3 z-30 mt-6 flex flex-wrap items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/80 px-4 py-3 shadow-[0_18px_60px_rgba(2,6,23,0.28)] backdrop-blur-xl">
+        <nav
+          className={`sticky top-3 z-30 mt-6 flex flex-wrap items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/80 px-4 py-3 shadow-[0_18px_60px_rgba(2,6,23,0.28)] backdrop-blur-xl transition duration-300 ${
+            showQuickNav ? 'md:pointer-events-none md:-translate-y-4 md:opacity-0' : ''
+          }`}
+        >
           <TopNavButton
             active={surface === 'experience'}
             label="체험하기"
@@ -606,6 +620,24 @@ export default function Home() {
             onClick={() => openMore(moreView)}
           />
         </nav>
+
+        {showQuickNav ? (
+          <aside className="fixed right-4 top-1/2 z-40 hidden -translate-y-1/2 lg:flex lg:flex-col lg:gap-3">
+            <QuickNavButton active={surface === 'experience'} label="체험하기" helper="샘플 흐름" onClick={openExperience} />
+            <QuickNavButton active={surface === 'contract'} label="내 계약" helper="등록·조회" onClick={openContractHome} />
+            <QuickNavButton active={surface === 'more'} label="더보기" helper="근거·로그" onClick={() => openMore(moreView)} />
+          </aside>
+        ) : null}
+
+        {showScrollTop ? (
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-5 right-5 z-40 rounded-full border border-cyan-300/30 bg-slate-950/85 px-4 py-3 text-sm font-semibold text-cyan-100 shadow-[0_18px_40px_rgba(2,6,23,0.42)] transition hover:bg-slate-900"
+          >
+            ↑ 맨 위
+          </button>
+        ) : null}
 
         {surface === 'more' ? (
           <div className="mt-4 flex flex-wrap gap-2 rounded-[22px] border border-white/10 bg-slate-950/40 p-2">
@@ -778,6 +810,7 @@ export default function Home() {
                   <GuidedStoryMode
                     demos={DEMO_LEASES}
                     selectedId={selectedDemoId}
+                    scenario={selectedDemo.scenario}
                     currentStage={summaryView.stage}
                     situation={summaryView.situationTitle}
                     storyTitle={selectedDemo.storyTitle}
@@ -1191,7 +1224,7 @@ function renderWorkspace({
           <WorkspaceActionBanner
             tone="info"
             title="실제 계약 등록 단계로 들어왔어요"
-            description="아래 1단계에서 임차인 주소, 보증금, 기간을 입력하면 실제 leaseId가 생성되고 다음 단계로 이어집니다."
+            description="아래 1단계에서 임차인 주소, 보증금, 기간을 입력하면 leaseId가 생성되고, 이후 임차인이 같은 계약을 확인·승인·예치하는 흐름으로 이어집니다."
           />
           {children}
         </div>
@@ -1201,7 +1234,7 @@ function renderWorkspace({
     return (
       <WorkspaceEmptyState
         title="아직 연결된 내 계약이 없어요"
-        description="주소를 먼저 고른 뒤 새 전세계약을 등록하거나, 데모 계약을 불러와 서비스 흐름을 살펴볼 수 있습니다."
+        description="주소를 먼저 고른 뒤 임대인이 계약을 등록하고, 이후 임차인이 같은 leaseId를 확인·승인·예치하는 흐름으로 진행됩니다."
         primaryLabel="새 전세계약 등록"
         secondaryLabel="데모 보기"
         onPrimary={onMoveToRegister}
@@ -1317,6 +1350,33 @@ function TopNavButton({
     >
       <span className={`text-sm font-semibold ${active ? 'text-cyan-100' : 'text-white'}`}>{label}</span>
       <span className="mt-1 text-xs leading-5 text-slate-400">{description}</span>
+    </button>
+  );
+}
+
+function QuickNavButton({
+  active,
+  label,
+  helper,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  helper: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-28 rounded-[20px] border px-3 py-3 text-left shadow-[0_16px_30px_rgba(2,6,23,0.28)] backdrop-blur-xl transition ${
+        active
+          ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+          : 'border-white/10 bg-slate-950/82 text-white hover:border-white/20 hover:bg-slate-900/90'
+      }`}
+    >
+      <span className="block text-sm font-semibold">{label}</span>
+      <span className="mt-1 block text-[11px] leading-4 text-slate-400">{helper}</span>
     </button>
   );
 }

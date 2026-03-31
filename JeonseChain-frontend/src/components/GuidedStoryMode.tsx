@@ -5,6 +5,7 @@ import { DemoLeaseRecord } from '@/lib/demo-data';
 type GuidedStoryModeProps = {
   demos: DemoLeaseRecord[];
   selectedId: string;
+  scenario: DemoLeaseRecord['scenario'];
   currentStage: number;
   situation: string;
   storyTitle: string;
@@ -25,6 +26,7 @@ const STORY_STEPS = [
 export default function GuidedStoryMode({
   demos,
   selectedId,
+  scenario,
   currentStage,
   situation,
   storyTitle,
@@ -33,6 +35,8 @@ export default function GuidedStoryMode({
   detailMode,
   onSelect,
 }: GuidedStoryModeProps) {
+  const sceneMeta = guidedSceneMeta(scenario, currentStage, nextActionLabel);
+
   return (
     <section className="glass-card overflow-hidden p-5 sm:p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -59,17 +63,26 @@ export default function GuidedStoryMode({
           <div className={`guided-confirm__party ${currentStage >= 1 ? 'guided-confirm__party--active' : ''}`}>
             <span className="guided-confirm__head" />
             <span className="guided-confirm__body" />
+            <span className="guided-confirm__party-label">임대인</span>
           </div>
           <div className={`guided-confirm__contract ${currentStage >= 2 ? 'guided-confirm__contract--active' : ''}`}>
             <span className="guided-confirm__line" />
             <span className="guided-confirm__line guided-confirm__line--short" />
           </div>
-          <div className={`guided-confirm__check ${currentStage >= 2 ? 'guided-confirm__check--active' : ''}`}>확인 완료</div>
+          <div
+            className={`guided-confirm__check ${
+              currentStage >= 2 ? `guided-confirm__check--${sceneMeta.tone}` : ''
+            }`}
+          >
+            {sceneMeta.label}
+          </div>
           <div className={`guided-confirm__party ${currentStage >= 2 ? 'guided-confirm__party--active' : ''}`}>
             <span className="guided-confirm__head" />
             <span className="guided-confirm__body" />
+            <span className="guided-confirm__party-label">임차인</span>
           </div>
         </div>
+        <p className="mt-3 text-sm leading-6 text-slate-200">{sceneMeta.helper}</p>
       </div>
 
       <div className="mt-6 grid gap-3 lg:grid-cols-3">
@@ -145,11 +158,11 @@ export default function GuidedStoryMode({
                       <p className="text-sm font-semibold text-white">{step}</p>
                       {active ? (
                         <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-100">
-                          current
+                          현재 단계
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">{stepCopy(stepNumber, detailMode)}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">{stepCopy(stepNumber, detailMode, scenario)}</p>
                   </div>
                 </div>
               </div>
@@ -170,14 +183,54 @@ function badgeTone(scenario: DemoLeaseRecord['scenario']) {
   return 'border border-amber-500/30 bg-amber-500/10 text-amber-50';
 }
 
-function stepCopy(stepNumber: number, detailMode: boolean) {
+function stepCopy(stepNumber: number, detailMode: boolean, scenario: DemoLeaseRecord['scenario']) {
   if (detailMode) {
+    if (scenario === 'extension') {
+      return [
+        'Extension request seeded on-chain',
+        'Counterparty reviews new end date',
+        'Risk checks rerun for the extended term',
+        'Current maturity and new schedule compared',
+        'Both parties confirm and end date updates',
+      ][stepNumber - 1];
+    }
+
+    if (scenario === 'termination') {
+      return [
+        'Early termination request proposed',
+        'Counterparty reviews exit conditions',
+        'Settlement and risk checks are prepared',
+        'Exit timing is fixed before maturity',
+        'Move-out settlement takes over',
+      ][stepNumber - 1];
+    }
+
     return [
       'Lease registration and pre-screen',
       'Deposit protection vault activation',
       'Oracle-based risk monitoring',
       'Expiry check and return eligibility',
       'Auto return or settlement hold',
+    ][stepNumber - 1];
+  }
+
+  if (scenario === 'extension') {
+    return [
+      '임대인이 연장 조건과 새 기간을 제안하는 단계',
+      '임차인이 연장 조건과 금액을 확인하는 단계',
+      '연장 기간 기준으로 위험 신호를 다시 보는 단계',
+      '현재 만기와 새 일정이 어떻게 달라지는지 비교하는 단계',
+      '양측 승인 후 만기일이 실제로 갱신되는 단계',
+    ][stepNumber - 1];
+  }
+
+  if (scenario === 'termination') {
+    return [
+      '조기 종료 사유와 종료 시점을 제안하는 단계',
+      '상대방이 해지 조건을 확인하는 단계',
+      '퇴실 정산과 반환 리스크를 미리 점검하는 단계',
+      '언제 계약을 끝낼지 확정하는 단계',
+      '퇴실 정산과 반환 단계로 이어지는 단계',
     ][stepNumber - 1];
   }
 
@@ -188,4 +241,54 @@ function stepCopy(stepNumber: number, detailMode: boolean) {
     '만기와 반환 조건을 확인하는 단계',
     '자동 반환 또는 퇴실 정산으로 마무리하는 단계',
   ][stepNumber - 1];
+}
+
+function guidedSceneMeta(
+  scenario: DemoLeaseRecord['scenario'],
+  currentStage: number,
+  nextActionLabel: string,
+) {
+  if (scenario === 'extension') {
+    return {
+      label: currentStage >= 5 ? '연장 승인 완료' : '연장 합의 대기',
+      helper:
+        currentStage >= 5
+          ? '임대인과 임차인 모두 승인해 새 만기일이 반영된 상태를 보여줍니다.'
+          : `한쪽이 연장을 제안하면 상대방 확인이 끝나야 다음 만기일이 반영됩니다. 다음 액션은 ${nextActionLabel}입니다.`,
+      tone: currentStage >= 5 ? 'done' : 'monitor',
+    } as const;
+  }
+
+  if (scenario === 'termination') {
+    return {
+      label: currentStage >= 5 ? '해지 후 정산 이동' : '해지 합의 대기',
+      helper:
+        currentStage >= 5
+          ? '양측 합의가 끝나 퇴실 정산 단계로 넘어간 상태를 보여줍니다.'
+          : '중도 해지는 한쪽 요청만으로 확정되지 않고, 반대 당사자 승인 뒤에만 정산 단계로 전환됩니다.',
+      tone: currentStage >= 5 ? 'warning' : 'warning',
+    } as const;
+  }
+
+  if (scenario === 'settlement') {
+    return {
+      label: currentStage >= 5 ? '정산 응답 대기' : '퇴실 점검 진행',
+      helper: '퇴실 사진·체크리스트를 확인한 뒤, 무분쟁 금액은 반환하고 분쟁 가능 금액만 소액 보류하는 흐름입니다.',
+      tone: 'warning',
+    } as const;
+  }
+
+  if (scenario === 'risk') {
+    return {
+      label: '위험 신호 감지',
+      helper: '권리변동이나 담보 위험이 감지되면 보호 구조를 유지한 채 중재 또는 추가 확인 단계로 넘어갑니다.',
+      tone: 'warning',
+    } as const;
+  }
+
+  return {
+    label: currentStage >= 5 ? '자동 반환 준비' : '보호 진행 중',
+    helper: '임대인이 등록하고 임차인이 확인·예치하면 계약이 활성화되고, 만기 시 자동 반환 단계로 이어집니다.',
+    tone: currentStage >= 5 ? 'done' : 'active',
+  } as const;
 }

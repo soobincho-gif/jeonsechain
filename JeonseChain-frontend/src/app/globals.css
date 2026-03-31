@@ -700,6 +700,11 @@ body {
     background: rgba(34, 211, 238, 0.14);
   }
 
+  .guided-confirm__party-label {
+    font-size: 11px;
+    color: #cbd5e1;
+  }
+
   .guided-confirm__contract {
     display: flex;
     flex-direction: column;
@@ -743,6 +748,28 @@ body {
     opacity: 1;
     border-color: rgba(16, 185, 129, 0.26);
     background: rgba(16, 185, 129, 0.1);
+    animation: checkGlow 2.6s ease-in-out infinite;
+  }
+
+  .guided-confirm__check--monitor {
+    opacity: 1;
+    border-color: rgba(34, 211, 238, 0.24);
+    background: rgba(34, 211, 238, 0.1);
+    color: #cffafe;
+  }
+
+  .guided-confirm__check--warning {
+    opacity: 1;
+    border-color: rgba(251, 191, 36, 0.26);
+    background: rgba(251, 191, 36, 0.12);
+    color: #fef3c7;
+  }
+
+  .guided-confirm__check--done {
+    opacity: 1;
+    border-color: rgba(16, 185, 129, 0.26);
+    background: rgba(16, 185, 129, 0.1);
+    color: #d1fae5;
     animation: checkGlow 2.6s ease-in-out infinite;
   }
 
@@ -849,20 +876,41 @@ body {
 
   .settlement-people__status {
     display: inline-flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
     margin-bottom: 4px;
-    border-radius: 9999px;
+    min-width: 172px;
+    max-width: 240px;
+    border-radius: 18px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(15, 23, 42, 0.58);
-    padding: 7px 12px;
+    padding: 10px 12px;
     font-size: 11px;
     color: #e2e8f0;
+  }
+
+  .settlement-people__status-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #f8fafc;
+  }
+
+  .settlement-people__status-copy {
+    font-size: 10px;
+    line-height: 1.45;
+    color: #cbd5e1;
   }
 
   .settlement-people__status--active {
     border-color: rgba(34, 211, 238, 0.22);
     background: rgba(34, 211, 238, 0.08);
+  }
+
+  .settlement-people__status--monitor {
+    border-color: rgba(251, 191, 36, 0.22);
+    background: rgba(250, 204, 21, 0.08);
   }
 
   .settlement-people__status--warning {
@@ -874,6 +922,21 @@ body {
     border-color: rgba(16, 185, 129, 0.28);
     background: rgba(16, 185, 129, 0.12);
     animation: checkGlow 2.7s ease-in-out infinite;
+  }
+
+  .settlement-people--monitor .settlement-people__body {
+    border-color: rgba(251, 191, 36, 0.34);
+    background: rgba(251, 191, 36, 0.12);
+  }
+
+  .settlement-people--warning .settlement-people__body {
+    border-color: rgba(251, 146, 60, 0.34);
+    background: rgba(251, 146, 60, 0.12);
+  }
+
+  .settlement-people--done .settlement-people__body {
+    border-color: rgba(16, 185, 129, 0.34);
+    background: rgba(16, 185, 129, 0.12);
   }
 }
 
@@ -945,6 +1008,7 @@ body {
   .hero-scene__trust-check,
   .guided-step-current,
   .guided-confirm__check--active,
+  .guided-confirm__check--done,
   .map-pin-drop,
   .mini-map-pulse,
   .mini-map-route,
