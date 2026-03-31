@@ -432,7 +432,7 @@ export default function LeaseViewer({
                   <InfoBox
                     label="체크리스트 해시"
                     value={hasMeaningfulHash(leaseDocuments?.[2]) ? formatAddress(String(leaseDocuments?.[2]), 10, 8) : '없음'}
-                    helper="입주 점검·사진 묶음 설명 해시"
+                    helper="입주 또는 퇴실 점검 체크리스트 해시"
                     mono
                   />
                 </div>

@@ -38,6 +38,7 @@ type OnchainSettlementPanelProps = {
 };
 
 type SettlementAction =
+  | 'record-inspection'
   | 'moveout'
   | 'claim'
   | 'tenant-accept-full'
@@ -46,6 +47,9 @@ type SettlementAction =
   | 'deadline-finalize'
   | 'hug-resolve'
   | null;
+
+type InspectionMode = 'verified-flow' | 'oracle-demo';
+type DemoIssueLevel = 'none' | 'minor' | 'major';
 
 const CATEGORY_OPTIONS = [
   { value: '0', label: '청소비', hint: '최대 30만 원' },
@@ -59,6 +63,43 @@ const INSPECTION_CHECKLIST = [
   '청소·파손 항목 확인 완료',
   '공과금·관리비 정산 여부 확인 완료',
 ] as const;
+
+const ORACLE_ISSUES = [
+  {
+    key: 'cleaning',
+    label: '청소 상태',
+    helper: '생활 오염, 쓰레기, 기본 청소 미흡 여부',
+    category: '0',
+    weights: { none: 0, minor: 150000, major: 300000 },
+  },
+  {
+    key: 'surface',
+    label: '벽·바닥 마감',
+    helper: '긁힘, 찍힘, 벽지 손상 같은 마감 상태',
+    category: '2',
+    weights: { none: 0, minor: 400000, major: 900000 },
+  },
+  {
+    key: 'fixture',
+    label: '시설·비품 파손',
+    helper: '문, 손잡이, 수전, 가전·붙박이 설비 손상',
+    category: '2',
+    weights: { none: 0, minor: 700000, major: 1800000 },
+  },
+  {
+    key: 'utility',
+    label: '공과금·관리비',
+    helper: '미납 공과금, 관리비, 비품 분실 같은 정산 항목',
+    category: '3',
+    weights: { none: 0, minor: 300000, major: 500000 },
+  },
+] as const;
+
+const DEMO_LEVEL_LABEL: Record<DemoIssueLevel, string> = {
+  none: '이상 없음',
+  minor: '경미',
+  major: '중대',
+};
 
 function hashText(value: string) {
   const trimmed = value.trim();
@@ -97,10 +138,17 @@ export default function OnchainSettlementPanel({
   const [responseMemo, setResponseMemo] = useState('청소비 일부만 수락하고 나머지는 이의 제기');
   const [resolutionAmount, setResolutionAmount] = useState('900000');
   const [resolutionMemo, setResolutionMemo] = useState('HUG 조정 결과 반영');
+  const [inspectionMode, setInspectionMode] = useState<InspectionMode>('verified-flow');
   const [inspectionChecks, setInspectionChecks] = useState<Record<(typeof INSPECTION_CHECKLIST)[number], boolean>>({
     '현장 사진 촬영 완료': false,
     '청소·파손 항목 확인 완료': false,
     '공과금·관리비 정산 여부 확인 완료': false,
+  });
+  const [oracleIssues, setOracleIssues] = useState<Record<(typeof ORACLE_ISSUES)[number]['key'], DemoIssueLevel>>({
+    cleaning: 'none',
+    surface: 'none',
+    fixture: 'none',
+    utility: 'none',
   });
 
   const settlement = settlementInfo as
@@ -111,6 +159,17 @@ export default function OnchainSettlementPanel({
     address: CONTRACT_ADDRESSES.JeonseVault,
     abi: VAULT_ABI,
     functionName: 'getSettlementHoldCap',
+    args: leaseReady ? [leaseId as `0x${string}`] : undefined,
+    query: {
+      enabled: leaseReady,
+      refetchInterval: 5000,
+    },
+  });
+
+  const { data: leaseDocuments } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseVault,
+    abi: VAULT_ABI,
+    functionName: 'getLeaseDocuments',
     args: leaseReady ? [leaseId as `0x${string}`] : undefined,
     query: {
       enabled: leaseReady,
@@ -154,6 +213,93 @@ export default function OnchainSettlementPanel({
     responseDeadline > BigInt(0) &&
     nowSec > responseDeadline;
   const inspectionReady = INSPECTION_CHECKLIST.every((label) => inspectionChecks[label]);
+  const inspectionChecklistHash = useMemo(() => {
+    const payload = JSON.stringify({
+      checks: INSPECTION_CHECKLIST.map((label) => ({
+        label,
+        checked: inspectionChecks[label],
+      })),
+      photoCount: evidenceFiles.length,
+    });
+    return hashText(payload);
+  }, [evidenceFiles.length, inspectionChecks]);
+  const inspectionMemoHash = useMemo(() => hashText(evidenceMemo || '퇴실 점검 기본 메모'), [evidenceMemo]);
+  const latestDocumentHash = leaseDocuments?.[0];
+  const latestDocumentRecordedAt = leaseDocuments?.[3];
+  const inspectionAnchoredOnchain =
+    typeof latestDocumentHash === 'string' &&
+    !!uploadedEvidence?.bundleHash &&
+    latestDocumentHash.toLowerCase() === uploadedEvidence.bundleHash.toLowerCase();
+
+  const demoOracle = useMemo(() => {
+    const issueEntries = ORACLE_ISSUES.map((item) => ({
+      ...item,
+      level: oracleIssues[item.key],
+      amount: item.weights[oracleIssues[item.key]],
+    }));
+    const severeCount = issueEntries.filter((item) => item.level === 'major').length;
+    const minorCount = issueEntries.filter((item) => item.level === 'minor').length;
+    const fileCount = evidenceFiles.length;
+    const checklistCount = INSPECTION_CHECKLIST.filter((label) => inspectionChecks[label]).length;
+    const checklistRatio = checklistCount / INSPECTION_CHECKLIST.length;
+    const rawHold = issueEntries.reduce((sum, item) => sum + item.amount, 0);
+    const recommendedHold = Math.min(rawHold, Number(holdCap ?? BigInt(3000000)));
+    const readinessLow = fileCount < 3 || checklistRatio < 1;
+
+    let status: 'full-return' | 'partial-hold' | 'manual-review' = 'full-return';
+    if (severeCount > 0 || (readinessLow && rawHold > 0)) {
+      status = 'manual-review';
+    } else if (rawHold > 0 || readinessLow) {
+      status = 'partial-hold';
+    }
+
+    const confidence =
+      fileCount >= 6 && checklistRatio === 1
+        ? '높음'
+        : fileCount >= 3 && checklistRatio >= 0.67
+          ? '보통'
+          : '낮음';
+
+    const reasons = [
+      fileCount >= 4 ? `사진 ${fileCount}장 확보` : `사진이 ${fileCount}장이라 추가 촬영 권장`,
+      checklistRatio === 1
+        ? '퇴실 점검 체크리스트 완료'
+        : `점검 체크 ${checklistCount}/${INSPECTION_CHECKLIST.length} 완료`,
+      ...issueEntries
+        .filter((item) => item.level !== 'none')
+        .map((item) => `${item.label} ${DEMO_LEVEL_LABEL[item.level]} 판정`),
+    ];
+
+    const dominantIssue = issueEntries
+      .slice()
+      .sort((left, right) => right.amount - left.amount)[0];
+
+    const headline =
+      status === 'full-return'
+        ? '사진과 체크리스트 기준으로 전액 반환 권장'
+        : status === 'partial-hold'
+          ? '분쟁 가능 금액만 소액 보류 권장'
+          : '자동 판정만으로 확정하지 말고 HUG 검토가 필요합니다';
+
+    const description =
+      status === 'full-return'
+        ? '현재 입력된 사진과 점검 결과만 보면 추가 차감 사유가 크지 않아 보입니다. 정산 청구 없이 자동 반환 흐름을 유지하는 시나리오입니다.'
+        : status === 'partial-hold'
+          ? '경미한 청소·마감 손상 수준이라 전체 보증금을 막지 않고 제한된 범위만 보류하는 것이 적절한 시나리오입니다.'
+          : '중대한 파손 또는 자료 부족이 감지되어 자동 판정만으로 확정하지 않고, 증빙 업로드 후 HUG 검증형 경로로 넘기는 것이 안전합니다.';
+
+    return {
+      status,
+      confidence,
+      reasons,
+      recommendedHold,
+      dominantCategory: dominantIssue?.category ?? '2',
+      headline,
+      description,
+      fileCount,
+      checklistCount,
+    };
+  }, [evidenceFiles.length, holdCap, inspectionChecks, oracleIssues]);
 
   useEffect(() => {
     setUploadedEvidence(null);
@@ -171,6 +317,17 @@ export default function OnchainSettlementPanel({
       onActivity({
         title: '퇴실 요청이 접수됐어요',
         description: '이제 72시간 안에 임대인이 제한된 범위에서만 정산 청구를 넣을 수 있습니다.',
+        tone: 'success',
+        txHash: receipt.transactionHash,
+        leaseId,
+      });
+      return;
+    }
+
+    if (action === 'record-inspection') {
+      onActivity({
+        title: '퇴실 점검 해시를 체인에 남겼어요',
+        description: '업로드한 증빙 번들과 체크리스트 해시가 온체인 근거로 기록되었습니다.',
         tone: 'success',
         txHash: receipt.transactionHash,
         leaseId,
@@ -252,6 +409,29 @@ export default function OnchainSettlementPanel({
       abi: VAULT_ABI,
       functionName: 'requestMoveOut',
       args: [leaseId as `0x${string}`],
+    });
+  }
+
+  function handleRecordInspection() {
+    if (!uploadedEvidence?.bundleHash || !inspectionChecklistHash || !inspectionMemoHash) return;
+
+    actionRef.current = 'record-inspection';
+    onActivity({
+      title: '퇴실 점검 해시를 전송했어요',
+      description: '증빙 번들, 점검 메모, 체크리스트 해시를 체인에 남겨 이후 정산 근거로 사용합니다.',
+      tone: 'info',
+      leaseId,
+    });
+    writeContract({
+      address: CONTRACT_ADDRESSES.JeonseVault,
+      abi: VAULT_ABI,
+      functionName: 'attachLeaseDocuments',
+      args: [
+        leaseId as `0x${string}`,
+        uploadedEvidence.bundleHash,
+        inspectionMemoHash,
+        inspectionChecklistHash,
+      ],
     });
   }
 
@@ -445,6 +625,31 @@ export default function OnchainSettlementPanel({
     });
   }
 
+  function applyOracleRecommendation() {
+    if (demoOracle.status === 'full-return') {
+      onActivity({
+        title: '자동 판정 결과: 전액 반환 권장',
+        description: '현재 입력 기준으로는 정산 청구 없이 자동 반환 흐름을 유지하는 시나리오가 적절합니다.',
+        tone: 'success',
+        leaseId,
+      });
+      return;
+    }
+
+    setCategory(demoOracle.dominantCategory as (typeof CATEGORY_OPTIONS)[number]['value']);
+    setClaimAmount(String(demoOracle.recommendedHold));
+    setEvidenceMemo(
+      `자동 판정 데모 요약 · ${demoOracle.reasons.join(' / ')} · 추천 보류 ${formatKRW(BigInt(demoOracle.recommendedHold))}`,
+    );
+    setInspectionMode('verified-flow');
+    onActivity({
+      title: '자동 판정 추천값을 정산 초안에 반영했어요',
+      description: '추천 보류 금액과 주요 사유를 실제 정산 청구 입력란에 채워두었습니다. 이후 증빙 업로드와 온체인 기록을 이어가면 됩니다.',
+      tone: demoOracle.status === 'manual-review' ? 'warning' : 'info',
+      leaseId,
+    });
+  }
+
   if (!leaseReady) return null;
 
   return (
@@ -491,8 +696,44 @@ export default function OnchainSettlementPanel({
 
       <div className="mt-5 space-y-4">
         <ActionBlock
+          title="퇴실 검증 방식"
+          description="일반 사용자에게는 이 사이트 안에서 퇴실 점검, 사진 증빙, 자동 판정 데모, 최종 HUG 확인까지 이어지는 흐름으로 보이게 구성했습니다."
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setInspectionMode('verified-flow')}
+              className={`rounded-[22px] border p-4 text-left transition ${
+                inspectionMode === 'verified-flow'
+                  ? 'border-cyan-300/30 bg-cyan-300/10'
+                  : 'border-white/10 bg-slate-950/40 hover:border-white/20'
+              }`}
+            >
+              <p className="text-sm font-semibold text-white">실사용형 검증</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                체크리스트와 증빙 업로드 후 해시를 체인에 남기고, 필요 시 HUG 검증형 정산으로 이어집니다.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setInspectionMode('oracle-demo')}
+              className={`rounded-[22px] border p-4 text-left transition ${
+                inspectionMode === 'oracle-demo'
+                  ? 'border-cyan-300/30 bg-cyan-300/10'
+                  : 'border-white/10 bg-slate-950/40 hover:border-white/20'
+              }`}
+            >
+              <p className="text-sm font-semibold text-white">사진 자동 판정 데모</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                사진 개수, 점검 체크, 훼손 항목을 바탕으로 전액 반환·부분 보류·HUG 검토 권고를 시뮬레이션합니다.
+              </p>
+            </button>
+          </div>
+        </ActionBlock>
+
+        <ActionBlock
           title="퇴실 점검 흐름"
-          description="일반 사용자 입장에서는 이 화면 안에서 퇴실 점검 체크, 사진·문서 업로드, 정산 요청, 응답, 최종 배분까지 이어집니다. 현재는 사진 자동 판독 오라클보다 증빙 업로드와 해시 기록 중심입니다."
+          description="일반 사용자 입장에서는 이 화면 안에서 퇴실 점검 체크, 사진·문서 업로드, 정산 요청, 응답, 최종 배분까지 이어집니다. 실사용형은 증빙 업로드와 해시 기록 중심이고, 자동 판정은 별도 데모 레이어로 제공됩니다."
         >
           <div className="grid gap-3 md:grid-cols-3">
             {INSPECTION_CHECKLIST.map((label) => (
@@ -516,6 +757,91 @@ export default function OnchainSettlementPanel({
             ))}
           </div>
         </ActionBlock>
+
+        {inspectionMode === 'oracle-demo' ? (
+          <ActionBlock
+            title="자동 판정 데모"
+            description="아래 결과는 발표와 체험용 시뮬레이션입니다. 실제 정산 확정은 이 결과만으로 끝나지 않고, 증빙 업로드와 HUG 검증형 경로를 함께 거칩니다."
+          >
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {ORACLE_ISSUES.map((issue) => (
+                <label key={issue.key} className="block rounded-[22px] border border-white/10 bg-slate-950/40 p-4">
+                  <span className="text-sm font-medium text-white">{issue.label}</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-400">{issue.helper}</span>
+                  <select
+                    value={oracleIssues[issue.key]}
+                    onChange={(event) =>
+                      setOracleIssues((current) => ({
+                        ...current,
+                        [issue.key]: event.target.value as DemoIssueLevel,
+                      }))
+                    }
+                    className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-3 text-sm text-white outline-none transition focus:border-teal-300/40"
+                  >
+                    <option value="none">이상 없음</option>
+                    <option value="minor">경미</option>
+                    <option value="major">중대</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-[24px] border border-white/10 bg-slate-950/50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">{demoOracle.headline}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{demoOracle.description}</p>
+                </div>
+                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${oracleStatusTone(demoOracle.status)}`}>
+                  {oracleStatusLabel(demoOracle.status)}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <MetricCard label="추천 보류 금액" value={formatKRW(BigInt(demoOracle.recommendedHold))} />
+                <MetricCard label="판정 신뢰도" value={demoOracle.confidence} helper={`사진 ${demoOracle.fileCount}장 / 체크 ${demoOracle.checklistCount}개`} />
+                <MetricCard
+                  label="다음 권장 액션"
+                  value={
+                    demoOracle.status === 'full-return'
+                      ? '청구 없이 자동 반환 유지'
+                      : demoOracle.status === 'partial-hold'
+                        ? '추천값으로 정산 초안 작성'
+                        : 'HUG 검토와 증빙 업로드 진행'
+                  }
+                />
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">자동 판정 근거</p>
+                <div className="mt-3 space-y-2">
+                  {demoOracle.reasons.map((reason) => (
+                    <p key={reason} className="text-sm text-slate-200">
+                      {reason}
+                    </p>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={applyOracleRecommendation}
+                  className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/15"
+                >
+                  {demoOracle.status === 'full-return' ? '자동 반환 권장 보기' : '추천값을 정산 초안에 반영'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInspectionMode('verified-flow')}
+                  className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.05]"
+                >
+                  실사용형 검증으로 전환
+                </button>
+              </div>
+            </div>
+          </ActionBlock>
+        ) : null}
 
         {canRequestMoveOut ? (
           <ActionBlock
@@ -675,18 +1001,67 @@ export default function OnchainSettlementPanel({
                 </div>
               </div>
             ) : null}
+            <div className="mt-4 rounded-[22px] border border-white/10 bg-slate-950/45 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">실제형 검증: 퇴실 점검 해시 기록</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">
+                    업로드한 증빙 번들과 체크리스트를 체인에 남겨야, 일반 사용자 입장에서도 이 사이트 안에서 점검 근거와 정산 요청이 이어지는 느낌이 유지됩니다.
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    inspectionAnchoredOnchain
+                      ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100'
+                      : 'border-white/10 bg-white/[0.03] text-slate-300'
+                  }`}
+                >
+                  {inspectionAnchoredOnchain ? '체인 기록 완료' : '체인 기록 전'}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <MetricCard
+                  label="현재 증빙 번들"
+                  value={uploadedEvidence?.bundleHash ? formatAddress(uploadedEvidence.bundleHash, 10, 8) : '아직 없음'}
+                />
+                <MetricCard
+                  label="최신 온체인 문서"
+                  value={typeof latestDocumentHash === 'string' && latestDocumentHash !== `0x${'0'.repeat(64)}` ? formatAddress(latestDocumentHash, 10, 8) : '아직 없음'}
+                  helper={latestDocumentRecordedAt && latestDocumentRecordedAt > BigInt(0) ? `기록 시각 ${formatDateTimeFromUnix(latestDocumentRecordedAt)}` : undefined}
+                />
+                <MetricCard
+                  label="체크리스트 상태"
+                  value={inspectionReady ? '모두 완료' : '추가 확인 필요'}
+                  helper={`사진 ${evidenceFiles.length}장 · 체크 ${INSPECTION_CHECKLIST.filter((label) => inspectionChecks[label]).length}/${INSPECTION_CHECKLIST.length}`}
+                />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={handleRecordInspection}
+                  disabled={!isLandlord || !uploadedEvidence?.bundleHash || !inspectionReady || !inspectionChecklistHash || !inspectionMemoHash || inspectionAnchoredOnchain || isPending || isConfirming}
+                  className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isPending ? '지갑 승인 대기...' : isConfirming ? '체인 기록 확인 중...' : '퇴실 점검 해시를 체인에 기록'}
+                </button>
+              </div>
+              {!inspectionAnchoredOnchain ? (
+                <p className="mt-3 text-xs text-slate-400">
+                  임대인 지갑으로 연결한 뒤, 업로드한 증빙과 체크리스트를 먼저 체인에 남겨야 실제 정산 청구를 제출할 수 있습니다.
+                </p>
+              ) : null}
+            </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 onClick={handleClaim}
-                disabled={!inspectionReady || !digitsOnly(claimAmount) || !uploadedEvidence?.bundleHash || isPending || isConfirming}
+                disabled={!inspectionReady || !inspectionAnchoredOnchain || !digitsOnly(claimAmount) || !uploadedEvidence?.bundleHash || isPending || isConfirming}
                 className="rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {isPending ? '지갑 승인 대기...' : isConfirming ? '청구 확인 중...' : '정산 청구 제출'}
               </button>
             </div>
-            {!uploadedEvidence ? (
+            {!uploadedEvidence || !inspectionAnchoredOnchain ? (
               <p className="mt-3 text-xs text-slate-400">
-                정산 청구 전에는 퇴실 점검 체크를 마치고, 최소 1개 이상의 증빙 파일을 업로드해 번들 해시를 만들어야 합니다.
+                정산 청구 전에는 퇴실 점검 체크를 마치고, 최소 1개 이상의 증빙 파일을 업로드해 번들 해시를 만든 뒤 체인에 점검 기록까지 남겨야 합니다.
               </p>
             ) : null}
           </ActionBlock>
@@ -845,4 +1220,16 @@ function formatFileSize(size: number) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function oracleStatusLabel(status: 'full-return' | 'partial-hold' | 'manual-review') {
+  if (status === 'full-return') return '전액 반환 권장';
+  if (status === 'partial-hold') return '부분 보류 권장';
+  return 'HUG 검토 권장';
+}
+
+function oracleStatusTone(status: 'full-return' | 'partial-hold' | 'manual-review') {
+  if (status === 'full-return') return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100';
+  if (status === 'partial-hold') return 'border-amber-400/30 bg-amber-400/10 text-amber-100';
+  return 'border-rose-400/30 bg-rose-400/10 text-rose-100';
 }

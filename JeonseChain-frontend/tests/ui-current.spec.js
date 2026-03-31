@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-const BASE_URL = 'http://localhost:3002';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3002';
 
 test.describe('JeonseChain current IA smoke', () => {
   test('landing, more menu, demo flow, and contract flow work together', async ({ page }) => {
