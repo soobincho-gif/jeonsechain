@@ -181,6 +181,17 @@ export default function Home() {
     },
   });
 
+  const { data: liveTrustRecord } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseVault,
+    abi: VAULT_ABI,
+    functionName: 'getLeaseTrustRecord',
+    args: activeLeaseReady ? [activeLeaseId as `0x${string}`] : undefined,
+    query: {
+      enabled: activeLeaseReady && !wrongNetwork,
+      refetchInterval: autoRefreshEnabled ? 10000 : false,
+    },
+  });
+
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -281,6 +292,7 @@ export default function Home() {
         liveInfo,
         liveLeaseData,
         liveRemaining,
+        liveTrustRecord,
       });
     }
 
@@ -295,6 +307,7 @@ export default function Home() {
     liveInfo,
     liveLeaseData,
     liveRemaining,
+    liveTrustRecord,
     selectedDemo,
     selectedDemoAddress,
     settlementDemoStatus,
@@ -934,16 +947,20 @@ function buildDemoSummary(
   };
 }
 
+type LiveTrustRecord = readonly [boolean, boolean, boolean, boolean, boolean, bigint, bigint] | undefined;
+
 function buildLiveSummary({
   activeLease,
   liveInfo,
   liveLeaseData,
   liveRemaining,
+  liveTrustRecord,
 }: {
   activeLease: LeaseDraft | null;
   liveInfo: readonly [string, string, bigint, bigint, number];
   liveLeaseData: readonly [string, string, bigint, bigint, bigint, string, number, bigint, boolean];
   liveRemaining: bigint | undefined;
+  liveTrustRecord: LiveTrustRecord;
 }): SummaryView {
   const stateNum = Number(liveInfo[4]);
   const tone = toneFromState(stateNum);
@@ -983,10 +1000,13 @@ function buildLiveSummary({
     situationDescription: situationDescriptionFromState(stateNum),
     settlementStatus: stateNum === 4 ? '최종 정산 완료' : '정산 없음',
     scenario: 'live',
-    trustBundle: getTrustBundle(trustKindFromLiveState(stateNum, liveRemaining), {
-      landlordName: `임대인 ${formatAddress(String(liveInfo[1]))}`,
-      tenantName: `임차인 ${formatAddress(String(liveInfo[0]))}`,
-    }),
+    trustBundle: buildLiveTrustBundle(
+      liveTrustRecord,
+      `임대인 ${formatAddress(String(liveInfo[1]))}`,
+      `임차인 ${formatAddress(String(liveInfo[0]))}`,
+      stateNum,
+      liveRemaining,
+    ),
   };
 }
 
@@ -1052,6 +1072,81 @@ function trustKindFromLiveState(stateNum: number, remainingDays?: bigint): Trust
   if (stateNum === 2 || stateNum === 5) return 'risk';
   if (stateNum === 3) return 'settlement';
   return 'returned';
+}
+
+function buildLiveTrustBundle(
+  record: LiveTrustRecord,
+  landlordName: string,
+  tenantName: string,
+  stateNum: number,
+  remainingDays: bigint | undefined,
+): TrustBundle {
+  // record가 없거나 아직 로딩 중이면 기존 템플릿으로 폴백
+  if (!record) {
+    return getTrustBundle(trustKindFromLiveState(stateNum, remainingDays), { landlordName, tenantName });
+  }
+
+  const [documentsAttached, normalCompletion, depositReturnedOnTime, settlementDisputeOpened, responseWithinDeadline] = record;
+
+  const landlordBadges: import('@/lib/trust').TrustBadge[] = [
+    {
+      label: '계약서 해시 등록',
+      helper: documentsAttached ? '계약서·특약 해시가 온체인에 기록됐습니다.' : '계약 등록 시 문서 해시 첨부 미완료.',
+      tone: documentsAttached ? 'safe' : 'monitor',
+    },
+    {
+      label: settlementDisputeOpened ? '분쟁 이력 있음' : '분쟁 이력 없음',
+      helper: settlementDisputeOpened ? '퇴실 정산 중 분쟁이 발생했습니다.' : '정산 분쟁 없이 진행 중입니다.',
+      tone: settlementDisputeOpened ? 'warning' : 'safe',
+    },
+  ];
+
+  const tenantBadges: import('@/lib/trust').TrustBadge[] = [
+    {
+      label: responseWithinDeadline ? '기한 내 응답 기록' : '응답 기한 준수 미확인',
+      helper: responseWithinDeadline ? '72시간 내 응답 사실이 온체인에 기록됐습니다.' : '아직 응답 기한 이벤트가 발생하지 않았습니다.',
+      tone: responseWithinDeadline ? 'safe' : 'monitor',
+    },
+    {
+      label: depositReturnedOnTime ? '제때 반환 기록됨' : '반환 완료 전',
+      helper: depositReturnedOnTime ? '만기 후 7일 내 반환 사실이 체인에 기록됐습니다.' : '반환이 완료되면 신뢰 이벤트가 자동으로 남습니다.',
+      tone: depositReturnedOnTime ? 'safe' : 'monitor',
+    },
+  ];
+
+  const metrics: import('@/lib/trust').TrustMetric[] = [
+    { label: '정상 종료', value: normalCompletion ? '확인됨' : '진행 중', helper: '분쟁 없이 계약 종료 시 true 기록' },
+    { label: '문서 해시', value: documentsAttached ? '등록됨' : '없음', helper: '계약서·특약 keccak 해시' },
+    { label: '제때 반환', value: depositReturnedOnTime ? '기록됨' : '미기록', helper: '만기 후 7일 내 반환 여부' },
+    { label: '분쟁 여부', value: settlementDisputeOpened ? '있음' : '없음', helper: '퇴실 정산 분쟁 발생 기록' },
+  ];
+
+  return {
+    title: '온체인 계약 신뢰 기록',
+    subtitle: '체인에서 직접 읽은 실제 계약 이력입니다. 템플릿이 아닙니다.',
+    note: 'JeonseVault.getLeaseTrustRecord()로 조회한 값입니다.',
+    landlord: {
+      roleLabel: '임대인',
+      displayName: landlordName,
+      headline: settlementDisputeOpened ? '분쟁 이력이 있는 계약' : documentsAttached ? '문서 해시 등록 완료' : '계약 진행 중',
+      summary: settlementDisputeOpened
+        ? '이 계약에서 퇴실 정산 분쟁이 발생했습니다. HUG 중재 결과가 반영됩니다.'
+        : '계약이 정상 진행 중이며, 분쟁 없이 종료되면 정상 종료 이벤트가 남습니다.',
+      badges: landlordBadges,
+      metrics,
+    },
+    tenant: {
+      roleLabel: '임차인',
+      displayName: tenantName,
+      headline: depositReturnedOnTime ? '제때 반환 확인됨' : responseWithinDeadline ? '기한 내 응답 기록됨' : '계약 진행 중',
+      summary: depositReturnedOnTime
+        ? '보증금이 만기 후 7일 내에 반환되어 신뢰 이벤트가 기록됐습니다.'
+        : '계약이 정상 진행 중이며, 반환 완료 시 신뢰 이벤트가 자동으로 남습니다.',
+      badges: tenantBadges,
+      metrics,
+    },
+    attestations: [],
+  };
 }
 
 function getContextualAction(
