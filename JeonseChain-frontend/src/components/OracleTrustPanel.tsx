@@ -2,7 +2,9 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { explorerLink, formatAddress } from '@/lib/format';
+import { useReadContract } from 'wagmi';
+import { CONTRACT_ADDRESSES, ORACLE_ABI } from '@/lib/contracts';
+import { explorerLink, formatAddress, formatDateTimeFromUnix } from '@/lib/format';
 import type { OracleSnapshot } from '@/lib/oracle';
 
 type OracleTrustPanelProps = {
@@ -52,6 +54,18 @@ export default function OracleTrustPanel({
   }, [autoRefreshEnabled]);
 
   const summary = snapshot?.latest;
+
+  const propertyIdReady = Boolean(
+    summary?.propertyId?.startsWith('0x') && summary.propertyId.length === 66,
+  );
+  const { data: onchainSignals } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseOracle,
+    abi: ORACLE_ABI,
+    functionName: 'getRiskSignalSummary',
+    args: propertyIdReady ? [summary!.propertyId as `0x${string}`] : undefined,
+    query: { enabled: propertyIdReady, refetchInterval: 30000 },
+  });
+
   const attestationCount = useMemo(() => {
     if (!summary) return 0;
     return Object.values(summary.attestation).filter((value) => value === 'MANUAL_OVERRIDE').length;
@@ -228,6 +242,52 @@ export default function OracleTrustPanel({
                   <div className="grid gap-3 sm:grid-cols-2">
                     <MetricChip label="bundleHash" value={formatAddress(summary.bundleHash, 10, 8)} helper="보고서 해시" />
                     <MetricChip label="propertyId" value={formatAddress(summary.propertyId, 10, 8)} helper="주소 기반 유도값" />
+                  </div>
+
+                  <div className="mt-4 rounded-[20px] border border-white/10 bg-slate-950/55 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-white">
+                        {detailMode ? 'On-chain risk signals (getRiskSignalSummary)' : '온체인 신호 직접 확인'}
+                      </p>
+                      {onchainSignals && onchainSignals[6] > BigInt(0) ? (
+                        <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+                          체인에서 직접 읽음
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-slate-400">
+                          {propertyIdReady ? '체인 조회 중' : '조회 대기'}
+                        </span>
+                      )}
+                    </div>
+
+                    {onchainSignals && onchainSignals[6] > BigInt(0) ? (
+                      <>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <OnchainSignalRow label="선순위채권 위험" active={onchainSignals[0]} />
+                          <OnchainSignalRow label="경매 위험 신호" active={onchainSignals[1]} />
+                          <OnchainSignalRow label="최근 권리변동" active={onchainSignals[2]} />
+                          <OnchainSignalRow label="반환 재원 스트레스" active={onchainSignals[4]} />
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <MetricChip
+                            label="전세가율 (BPS)"
+                            value={`${Number(onchainSignals[3])} bps · ${(Number(onchainSignals[3]) / 100).toFixed(1)}%`}
+                            helper="보증금 ÷ 공시가격"
+                          />
+                          <MetricChip
+                            label="최종 기록 시각"
+                            value={formatDateTimeFromUnix(onchainSignals[6])}
+                            helper="updateRiskSignals 기준"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-3 text-sm leading-6 text-slate-400">
+                        {propertyIdReady
+                          ? 'oracle-fetcher가 updateRiskSignals()를 실행하면 이곳에 온체인 신호가 표시됩니다.'
+                          : '스냅샷이 로드되면 propertyId로 체인에서 신호를 직접 조회합니다.'}
+                      </p>
+                    )}
                   </div>
                 </PanelCard>
               </div>
@@ -757,4 +817,21 @@ function formatRelative(value?: string | null) {
   const diffHour = Math.round(diffMin / 60);
   if (diffHour < 24) return `${diffHour}시간 전`;
   return `${Math.round(diffHour / 24)}일 전`;
+}
+
+function OnchainSignalRow({ label, active }: { label: string; active: boolean }) {
+  return (
+    <div className={`flex items-center justify-between gap-2 rounded-[16px] border px-3 py-2.5 ${
+      active ? 'border-rose-500/25 bg-rose-500/8' : 'border-white/10 bg-white/[0.03]'
+    }`}>
+      <span className="text-xs text-slate-200">{label}</span>
+      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+        active
+          ? 'border-rose-500/30 bg-rose-500/10 text-rose-100'
+          : 'border-emerald-500/25 bg-emerald-500/8 text-emerald-200'
+      }`}>
+        {active ? '감지됨' : '없음'}
+      </span>
+    </div>
+  );
 }
