@@ -836,21 +836,21 @@ export default function Home() {
                 <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
                   임대인, 임차인,
                   <br className="hidden sm:block" />
-                  그냥 둘러보는 사람마다 시작점을 다시 나눴습니다
+                  처음 살펴보는 사람마다 시작점을 다시 나눴습니다
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
-                  누가 들어왔는지에 따라 바로 눌러야 할 버튼이 다르기 때문에, 이제는 둘러보기와 실제 계약 진행을 역할별로 더 분명하게
-                  갈라두었습니다. 데모는 설명용으로, 임대인/임차인 화면은 실제 진행용으로 읽히도록 구조를 다시 묶었습니다.
+                  누가 들어왔는지에 따라 먼저 봐야 할 화면이 다르기 때문에, 설명용 데모와 실제 계약 진행 화면을 역할별로 더 분명하게
+                  나눴습니다. 처음 이해하는 단계와 실제 진행 단계가 한눈에 구분되도록 시작 구조를 다시 묶었습니다.
                 </p>
 
                 <div className="mt-6 grid gap-4 xl:grid-cols-3">
                   <PersonaEntryCard
-                    eyebrow="둘러보기"
-                    title="그냥 둘러보는 사람"
-                    description="서비스가 실제로 무엇을 보호하고, 위험과 정산을 어떻게 설명하는지 먼저 이해하고 싶은 사람에게 맞는 시작점입니다."
+                    eyebrow="서비스 이해"
+                    title="처음 살펴보는 사람"
+                    description="JeonseChain이 무엇을 보호하고, 위험 신호와 정산 흐름을 어떤 식으로 보여주는지 먼저 훑어보고 싶은 사람에게 맞는 시작점입니다."
                     points={[
-                      '정상 계약, 위험 계약, 퇴실 정산 데모를 먼저 확인',
-                      '데모가 왜 유효한지와 어떤 기능을 보여주는지 같이 설명',
+                      '정상 계약, 위험 계약, 퇴실 정산 데모를 순서대로 살펴보기',
+                      '각 데모가 보여주는 상황과 실제 연결 화면을 함께 확인하기',
                     ]}
                     primaryLabel="핵심 데모 보기"
                     secondaryLabel="전체 시나리오 보기"
