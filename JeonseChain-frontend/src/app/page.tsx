@@ -545,6 +545,46 @@ export default function Home() {
           ) : null}
         </div>
 
+        <nav className="mt-6 flex flex-wrap items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/45 px-4 py-3">
+          <TopNavButton
+            active={surface === 'experience'}
+            label="체험하기"
+            description="샘플 계약 설명 모드"
+            onClick={openExperience}
+          />
+          <TopNavButton
+            active={surface === 'contract'}
+            label="내 계약"
+            description="주소 검색과 계약 관리"
+            onClick={openContractHome}
+          />
+          <TopNavButton
+            active={surface === 'more'}
+            label="더보기"
+            description="위험·신뢰·근거"
+            onClick={() => openMore(moreView)}
+          />
+        </nav>
+
+        {surface === 'more' ? (
+          <div className="mt-4 flex flex-wrap gap-2 rounded-[22px] border border-white/10 bg-slate-950/40 p-2">
+            {MORE_MENU.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setMoreView(item.key)}
+                className={`rounded-full px-4 py-2 text-sm transition ${
+                  moreView === item.key
+                    ? 'bg-cyan-300 text-slate-950'
+                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         {surface === 'landing' ? (
           <>
             <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_420px]">
@@ -632,46 +672,6 @@ export default function Home() {
           </>
         ) : (
           <>
-            <nav className="mt-6 flex flex-wrap items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/45 px-4 py-3">
-              <TopNavButton
-                active={surface === 'experience'}
-                label="체험하기"
-                description="샘플 계약 설명 모드"
-                onClick={openExperience}
-              />
-              <TopNavButton
-                active={surface === 'contract'}
-                label="내 계약"
-                description="주소 검색과 계약 관리"
-                onClick={openContractHome}
-              />
-              <TopNavButton
-                active={surface === 'more'}
-                label="더보기"
-                description="위험·신뢰·근거"
-                onClick={() => openMore(moreView)}
-              />
-            </nav>
-
-            {surface === 'more' ? (
-              <div className="mt-4 flex flex-wrap gap-2 rounded-[22px] border border-white/10 bg-slate-950/40 p-2">
-                {MORE_MENU.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => setMoreView(item.key)}
-                    className={`rounded-full px-4 py-2 text-sm transition ${
-                      moreView === item.key
-                        ? 'bg-cyan-300 text-slate-950'
-                        : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
             {surface === 'experience' ? (
               <>
                 <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_520px]">
