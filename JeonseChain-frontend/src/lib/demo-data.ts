@@ -8,6 +8,7 @@ export type AddressRecord = {
   lng: number;
   riskScore: number;
   riskLabel: 'Safe' | 'Monitor' | 'Warning';
+  source?: 'book' | 'manual';
 };
 
 export type DemoLeaseRecord = {
@@ -47,7 +48,7 @@ export type SettlementStatus =
 export type DemoAudience = 'browser' | 'landlord' | 'tenant';
 
 export const DEMO_AUDIENCE_LABEL: Record<DemoAudience, string> = {
-  browser: '둘러보는 사람',
+  browser: '처음 보는 사람',
   landlord: '임대인',
   tenant: '임차인',
 };

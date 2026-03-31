@@ -38,7 +38,7 @@ import {
   SETTLEMENT_STAGE_META,
   SettlementStatus,
 } from '@/lib/demo-data';
-import { formatAddress, formatKRW } from '@/lib/format';
+import { formatAddress, formatKRW, isMeaningfulAddress } from '@/lib/format';
 import { getTrustBundle, TrustBundle, TrustBundleKind } from '@/lib/trust';
 import {
   buildOracleRiskPreview,
@@ -131,9 +131,9 @@ const EXPERIENCE_AUDIENCE_META: Record<
     defaultDemoId: 'safe-contract',
   },
   browser: {
-    label: '둘러보는 사람',
-    headline: '서비스 구조를 먼저 이해하고 싶은 사람용 데모',
-    description: '계약을 실제로 진행하기 전, 보호 구조와 위험 감지, 정산 원칙이 어떤 식으로 보이는지 빠르게 이해하는 데 초점을 둡니다.',
+    label: '처음 보는 사람',
+    headline: '서비스를 처음 이해할 때 보면 좋은 핵심 데모',
+    description: '실제 계약을 진행하기 전, JeonseChain이 무엇을 보호하고 위험 신호와 정산 흐름을 어떻게 보여주는지 빠르게 파악하는 데 초점을 둡니다.',
     defaultDemoId: 'safe-contract',
   },
   landlord: {
@@ -256,6 +256,11 @@ export default function Home() {
     () => (selectedAddress ? derivePropertyIdFromAddress(selectedAddress.roadAddress) : undefined),
     [selectedAddress],
   );
+  const selectedAddressMatchesActiveLease = Boolean(
+    activeLease?.propertyId &&
+    selectedPropertyId &&
+    activeLease.propertyId === selectedPropertyId,
+  );
 
   const { data: liveInfo, refetch: refetchLiveInfo } = useReadContract({
     address: CONTRACT_ADDRESSES.JeonseVault,
@@ -368,6 +373,7 @@ export default function Home() {
         const parsed = JSON.parse(stored) as {
           activeLease: LeaseDraft | null;
           activities: ActivityItem[];
+          selectedAddress?: AddressRecord | null;
           selectedAddressId?: string;
           detailAddress?: string;
           demoMode?: boolean;
@@ -385,7 +391,10 @@ export default function Home() {
         setAutoRefreshEnabled(parsed.autoRefreshEnabled ?? true);
         setRegistrationIntent(parsed.registrationIntent ?? false);
 
-        const storedAddress = ADDRESS_BOOK.find((item) => item.id === parsed.selectedAddressId);
+        const storedAddress =
+          parsed.selectedAddress && parsed.selectedAddress.roadAddress
+            ? parsed.selectedAddress
+            : ADDRESS_BOOK.find((item) => item.id === parsed.selectedAddressId);
         if (storedAddress) setSelectedAddress(storedAddress);
         setDetailAddress(parsed.detailAddress ?? '');
         setContractRoleView(parsed.contractRoleView ?? 'landlord');
@@ -426,6 +435,7 @@ export default function Home() {
       JSON.stringify({
         activeLease,
         activities,
+        selectedAddress,
         selectedAddressId: selectedAddress?.id,
         detailAddress,
         demoMode,
@@ -556,7 +566,9 @@ export default function Home() {
     setDemoMode(false);
     setRegistrationIntent(false);
     setActiveLease((current) => ({
-      ...(current ?? { leaseId: next.leaseId }),
+      ...(shouldResetLeaseContext(current, next)
+        ? { leaseId: next.leaseId }
+        : (current ?? { leaseId: next.leaseId })),
       ...next,
     }));
     if (nextTab) {
@@ -836,21 +848,21 @@ export default function Home() {
                 <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
                   임대인, 임차인,
                   <br className="hidden sm:block" />
-                  처음 살펴보는 사람마다 시작점을 다시 나눴습니다
+                  처음 보는 사람에게 맞는 시작점을 따로 준비했습니다
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
-                  누가 들어왔는지에 따라 먼저 봐야 할 화면이 다르기 때문에, 설명용 데모와 실제 계약 진행 화면을 역할별로 더 분명하게
-                  나눴습니다. 처음 이해하는 단계와 실제 진행 단계가 한눈에 구분되도록 시작 구조를 다시 묶었습니다.
+                  둘러보기용 데모와 실제 계약 진행 화면이 섞여 보이지 않도록, 역할에 따라 먼저 봐야 할 화면을 분리했습니다.
+                  서비스를 이해하는 단계와 실제 진행 단계를 자연스럽게 오갈 수 있도록 시작 구조를 다시 정리했습니다.
                 </p>
 
                 <div className="mt-6 grid gap-4 xl:grid-cols-3">
                   <PersonaEntryCard
-                    eyebrow="서비스 이해"
-                    title="처음 살펴보는 사람"
-                    description="JeonseChain이 무엇을 보호하고, 위험 신호와 정산 흐름을 어떤 식으로 보여주는지 먼저 훑어보고 싶은 사람에게 맞는 시작점입니다."
+                    eyebrow="먼저 이해하기"
+                    title="서비스 먼저 이해하기"
+                    description="JeonseChain이 무엇을 보호하고, 위험 신호와 정산 흐름을 어떤 방식으로 보여주는지 먼저 파악하고 싶은 분에게 맞는 시작점입니다."
                     points={[
-                      '정상 계약, 위험 계약, 퇴실 정산 데모를 순서대로 살펴보기',
-                      '각 데모가 보여주는 상황과 실제 연결 화면을 함께 확인하기',
+                      '핵심 데모로 정상 계약, 위험 계약, 퇴실 정산 흐름을 빠르게 보기',
+                      '각 데모가 설명하는 상황과 이어지는 실제 화면까지 함께 보기',
                     ]}
                     primaryLabel="핵심 데모 보기"
                     secondaryLabel="전체 시나리오 보기"
@@ -999,6 +1011,9 @@ export default function Home() {
                       >
                         {demoConnectionAction.label}
                       </button>
+                      <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-xs text-amber-100">
+                        지갑 없이 읽는 고정 역할 데모
+                      </span>
                       <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-400">
                         현재 데모 {selectedDemo.storyTitle}
                       </span>
@@ -1024,6 +1039,11 @@ export default function Home() {
                       detailMode={detailMode}
                       activities={activities}
                       availableTabs={['contract', 'risk', 'trust', 'settlement']}
+                    />
+                    <DemoRoleMapPanel
+                      demo={selectedDemo}
+                      addressItem={selectedDemoAddress}
+                      settlementStatus={summaryView.settlementStatus}
                     />
                     <DemoGuidePanel
                       demo={selectedDemo}
@@ -1118,9 +1138,11 @@ export default function Home() {
                         points={[
                           '주소 검색과 오라클 사전 점검',
                           '계약 등록과 문서 해시 첨부',
-                          activeLease?.leaseId ? `현재 leaseId ${formatAddress(activeLease.leaseId, 8, 6)}` : '아직 leaseId 생성 전',
+                          selectedAddressMatchesActiveLease && activeLease?.leaseId
+                            ? `현재 leaseId ${formatAddress(activeLease.leaseId, 8, 6)}`
+                            : '이번 주소 기준 leaseId 생성 전',
                         ]}
-                        statusLabel={activeLease?.leaseId ? '등록 흐름 이어서 보기' : '처음 시작하기'}
+                        statusLabel={selectedAddressMatchesActiveLease && activeLease?.leaseId ? '등록 흐름 이어서 보기' : '처음 시작하기'}
                         primaryLabel="임대인 화면 열기"
                         secondaryLabel="임대인 데모 보기"
                         active={contractRoleView === 'landlord'}
@@ -1245,7 +1267,8 @@ export default function Home() {
                           <>
                             {tab === 'landlord' ? (
                               <LandlordPanel
-                                activeLease={activeLease}
+                                key={`${selectedAddress?.id ?? 'no-address'}:${selectedAddressMatchesActiveLease ? activeLease?.leaseId ?? 'linked' : 'new'}`}
+                                activeLease={selectedAddressMatchesActiveLease ? activeLease : null}
                                 suggestedPropertyLabel={
                                   selectedAddress
                                     ? buildPropertyLabel(selectedAddress, detailAddress)
@@ -1823,9 +1846,9 @@ function DemoGuidePanel({
       </div>
 
       <div className="mt-5 rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
-        <p className="text-sm font-semibold text-white">실제 화면으로 이어보기</p>
+        <p className="text-sm font-semibold text-white">실제 서비스로 옮길 때</p>
         <p className="mt-2 text-sm leading-6 text-slate-300">
-          데모를 본 뒤 같은 흐름을 실제 워크스페이스에서 어디로 이어서 봐야 하는지 바로 고를 수 있습니다.
+          위 내용은 설명용 샘플 계약입니다. 아래 버튼부터는 실제 워크스페이스로 이동하므로, 지갑 연결과 온체인 상태를 기준으로 다시 진행됩니다.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button
@@ -1837,7 +1860,7 @@ function DemoGuidePanel({
                 : 'border-white/10 text-slate-100 hover:border-cyan-300/30 hover:bg-white/[0.03]'
             }`}
           >
-            임대인 화면
+            실제 임대인 화면
           </button>
           <button
             type="button"
@@ -1848,7 +1871,7 @@ function DemoGuidePanel({
                 : 'border-white/10 text-slate-100 hover:border-cyan-300/30 hover:bg-white/[0.03]'
             }`}
           >
-            임차인 화면
+            실제 임차인 화면
           </button>
           <button
             type="button"
@@ -1859,9 +1882,77 @@ function DemoGuidePanel({
                 : 'border-white/10 text-slate-100 hover:border-cyan-300/30 hover:bg-white/[0.03]'
             }`}
           >
-            계약 조회 화면
+            실제 계약 조회 화면
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DemoRoleMapPanel({
+  demo,
+  addressItem,
+  settlementStatus,
+}: {
+  demo: DemoLeaseRecord;
+  addressItem: AddressRecord;
+  settlementStatus: SettlementStatus;
+}) {
+  const roleCards = buildDemoRoleCards(demo, settlementStatus);
+
+  return (
+    <div className="glass-card overflow-hidden p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">고정 역할 데모</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">지갑 없이 읽는 샘플 계약 구조</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            이 영역의 임대인, 임차인, 조회 화면은 설명용으로 고정된 역할입니다. 실제 트랜잭션은 발생하지 않고, 어떤 계약이 어떤 단계에
+            있는지 이해하는 데만 사용합니다.
+          </p>
+        </div>
+        <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100">
+          읽기 전용 샘플
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryMetricCard label="샘플 계약 키" value={demo.id} helper="실제 on-chain leaseId가 아니라 설명용 키입니다." />
+        <SummaryMetricCard label="목적물" value={addressItem.building} helper={addressItem.roadAddress} />
+        <SummaryMetricCard label="현재 상태" value={CONTRACT_STATE[demo.state] || '미확인'} helper={`다음 액션 ${demo.nextActionLabel}`} />
+        <SummaryMetricCard label="정산 단계" value={settlementStatus} helper={`보증금 ${demo.depositText}`} />
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        {roleCards.map((card) => (
+          <div
+            key={card.key}
+            className={`rounded-[24px] border p-4 ${
+              card.highlighted
+                ? 'border-cyan-300/30 bg-cyan-300/10'
+                : 'border-white/10 bg-slate-950/45'
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{card.eyebrow}</p>
+                <p className="mt-2 text-base font-semibold text-white">{card.title}</p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-slate-300">
+                {card.status}
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-300">{card.summary}</p>
+            <div className="mt-4 space-y-2">
+              {card.points.map((point) => (
+                <p key={point} className="text-xs leading-5 text-slate-400">
+                  {point}
+                </p>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -2123,7 +2214,7 @@ function buildDemoSummary(
     demo.scenario === 'settlement' || demo.scenario === 'termination';
 
   return {
-    title: '내 전세 계약 요약',
+    title: '샘플 계약 요약',
     addressLine: addressItem.roadAddress,
     buildingLabel: `${addressItem.building} · 우편번호 ${addressItem.postalCode}`,
     depositLabel: demo.depositText,
@@ -2134,8 +2225,8 @@ function buildDemoSummary(
     riskScore: demo.riskScore,
     tone: toneFromRisk(demo.riskLabel),
     stage: demo.stage,
-    note: '지갑 연결 전에도 서비스 가치와 계약 흐름을 읽을 수 있는 샘플 계약 요약입니다.',
-    liveLabel: '데모 스토리 모드',
+    note: '지갑 없이도 계약 구조를 이해할 수 있도록 고정된 역할과 상태를 보여주는 읽기 전용 샘플 계약입니다.',
+    liveLabel: '읽기 전용 데모',
     depositKRW: demo.depositKRW,
     nextActionLabel: usesSettlementNarrative ? settlementMeta.nextActionLabel : demo.nextActionLabel,
     situationTitle: usesSettlementNarrative ? settlementMeta.headline : demo.currentSituation,
@@ -2178,6 +2269,36 @@ function buildLiveSummary({
   const statusLabel = liveOraclePreview ? addressRiskLabelToKorean(liveOraclePreview.label) : fallbackRiskLabel;
   const riskScore = liveOraclePreview?.score ?? riskScoreFromState(stateNum);
   const tone = liveOraclePreview ? toneFromAddressRisk(liveOraclePreview.label) : toneFromState(stateNum);
+  const hasLeaseRecord =
+    isMeaningfulAddress(String(liveInfo[0])) &&
+    liveLeaseData[4] > BigInt(0);
+
+  if (!hasLeaseRecord) {
+    return {
+      title: '내 전세 계약 요약',
+      addressLine: activeLease?.propertyLabel || '온체인 계약 미확인',
+      buildingLabel: activeLease?.leaseId
+        ? `leaseId ${formatAddress(activeLease.leaseId, 8, 6)}`
+        : '확인할 leaseId를 다시 입력해 주세요',
+      depositLabel: '조회된 계약 없음',
+      protectionPercent: 0,
+      remainingLabel: '-',
+      maturityLabel: '계약을 다시 확인해 주세요',
+      statusLabel: '조회 전',
+      riskScore: 0,
+      tone: 'monitor',
+      stage: 1,
+      note: '없는 leaseId이거나 아직 실제 계약으로 등록되지 않은 값일 수 있습니다. 등록이 끝난 leaseId인지 다시 확인해 주세요.',
+      liveLabel: '실시간 온체인 계약 조회',
+      depositKRW: activeLease?.depositKRW || '0',
+      nextActionLabel: 'leaseId 다시 확인',
+      situationTitle: '아직 유효한 온체인 계약이 확인되지 않았어요.',
+      situationDescription: '존재하지 않는 leaseId를 조회하면 체인에서 0 값이 돌아오기 때문에, 전세체인은 이를 실제 계약으로 처리하지 않고 다시 확인하도록 안내합니다.',
+      settlementStatus: '정산 없음',
+      scenario: 'live',
+      trustBundle: getTrustBundle('register'),
+    };
+  }
 
   return {
     title: '내 전세 계약 요약',
@@ -2394,12 +2515,141 @@ function getDemoConnectionAction(
   },
 ) {
   if (demo.linkedWorkspace === 'landlord') {
-    return { label: '추천 화면 열기: 임대인', onClick: actions.onOpenLandlord };
+    return { label: '실제 임대인 화면 보기', onClick: actions.onOpenLandlord };
   }
 
   if (demo.linkedWorkspace === 'tenant') {
-    return { label: '추천 화면 열기: 임차인', onClick: actions.onOpenTenant };
+    return { label: '실제 임차인 화면 보기', onClick: actions.onOpenTenant };
   }
 
-  return { label: '추천 화면 열기: 계약 조회', onClick: actions.onOpenViewer };
+  return { label: '실제 계약 조회 화면 보기', onClick: actions.onOpenViewer };
+}
+
+function shouldResetLeaseContext(current: LeaseDraft | null, next: LeaseDraft) {
+  if (!current?.leaseId || !next.leaseId || current.leaseId === next.leaseId) return false;
+  return !next.depositKRW && !next.propertyLabel && !next.propertyId && !next.tenant && !next.landlord;
+}
+
+function buildDemoRoleCards(
+  demo: DemoLeaseRecord,
+  settlementStatus: SettlementStatus,
+): Array<{
+  key: ContractRoleView;
+  eyebrow: string;
+  title: string;
+  status: string;
+  summary: string;
+  points: string[];
+  highlighted: boolean;
+}> {
+  const landlord = {
+    key: 'landlord' as const,
+    eyebrow: '샘플 임대인',
+    title: '고정 역할로 계약 등록 이후 상태를 읽습니다',
+    status: demoLandlordStatus(demo, settlementStatus),
+    summary: demoLandlordSummary(demo, settlementStatus),
+    points: [
+      '설명용 샘플이라 실제 지갑 서명이나 등록 트랜잭션은 발생하지 않습니다.',
+      '이 역할은 주소 점검, 계약 등록, 정산 요청처럼 임대인 관점의 판단 포인트를 이해하는 데 쓰입니다.',
+      '실제 등록은 별도의 내 계약 화면에서 시작합니다.',
+    ],
+    highlighted: demo.linkedWorkspace === 'landlord',
+  };
+
+  const tenant = {
+    key: 'tenant' as const,
+    eyebrow: '샘플 임차인',
+    title: '고정 역할로 확인·승인·응답 흐름을 읽습니다',
+    status: demoTenantStatus(demo, settlementStatus),
+    summary: demoTenantSummary(demo, settlementStatus),
+    points: [
+      '이 데모에서는 leaseId 확인, 승인, 보증금 예치 또는 정산 응답이 이미 설명용 상태로 고정돼 있습니다.',
+      '임차인이 어느 시점에 확인하고 어디서 멈추는지 읽는 데 집중합니다.',
+      '실제 승인과 보증금 예치는 실제 임차인 지갑에서만 실행됩니다.',
+    ],
+    highlighted: demo.linkedWorkspace === 'tenant',
+  };
+
+  const viewer = {
+    key: 'viewer' as const,
+    eyebrow: '샘플 조회 화면',
+    title: '양측이 함께 보는 상태 판독 화면입니다',
+    status: `${CONTRACT_STATE[demo.state] || '미확인'} · ${settlementStatus}`,
+    summary:
+      '조회 화면은 샘플 계약의 현재 상태, 위험 신호, 정산 단계가 어떻게 읽혀야 하는지 보여주는 읽기 전용 모니터 역할입니다.',
+    points: [
+      `현재 샘플 계약의 핵심 액션은 "${demo.nextActionLabel}"입니다.`,
+      '체험 모드에서는 항상 같은 샘플 계약과 같은 역할 관계를 보여줘 비교가 쉽게 유지됩니다.',
+      '실제 서비스에서는 실제 leaseId를 넣어 같은 구조를 다시 확인합니다.',
+    ],
+    highlighted: demo.linkedWorkspace === 'viewer',
+  };
+
+  return [landlord, tenant, viewer];
+}
+
+function demoLandlordStatus(demo: DemoLeaseRecord, settlementStatus: SettlementStatus) {
+  if (demo.scenario === 'risk') return '위험 신호 확인 필요';
+  if (demo.scenario === 'settlement') return settlementStatus;
+  if (demo.scenario === 'extension') return '연장 제안 검토 중';
+  if (demo.scenario === 'termination') return '중도 해지 협의 중';
+  return '등록 완료 · 보호 상태 확인';
+}
+
+function demoTenantStatus(demo: DemoLeaseRecord, settlementStatus: SettlementStatus) {
+  if (demo.scenario === 'risk') return '위험 상태 공유';
+  if (demo.scenario === 'settlement') return settlementStatus;
+  if (demo.scenario === 'extension') return '연장 승인 여부 확인';
+  if (demo.scenario === 'termination') return '해지 합의 및 정산 확인';
+  return '예치 완료 · 보호 상태 확인';
+}
+
+function demoLandlordSummary(demo: DemoLeaseRecord, settlementStatus: SettlementStatus) {
+  if (demo.scenario === 'risk') {
+    return '임대인은 이 샘플 계약에서 일반 반환보다 위험 신호와 대응 순서를 먼저 봐야 합니다.';
+  }
+  if (demo.scenario === 'settlement') {
+    return `임대인은 현재 "${settlementStatus}" 단계에서 어떤 증빙과 정산 요청이 필요한지 읽는 역할로 고정되어 있습니다.`;
+  }
+  if (demo.scenario === 'extension') {
+    return '임대인은 연장 제안을 보내거나 받은 뒤, 상대방 승인 전까지는 기존 만기일이 유지된다는 점을 읽습니다.';
+  }
+  if (demo.scenario === 'termination') {
+    return '임대인은 조기 종료 합의 뒤 곧바로 퇴실 정산 흐름이 이어진다는 연결 구조를 읽습니다.';
+  }
+  return '임대인은 이미 계약 등록과 문서 정리를 끝낸 상태로, 지금은 보증금 보호와 만기 전 상태를 확인하는 역할입니다.';
+}
+
+function demoTenantSummary(demo: DemoLeaseRecord, settlementStatus: SettlementStatus) {
+  if (demo.scenario === 'risk') {
+    return '임차인은 이 샘플 계약에서 보증금이 보호 중이더라도 위험 상태가 켜지면 일반 반환만 기다리면 안 된다는 점을 읽습니다.';
+  }
+  if (demo.scenario === 'settlement') {
+    return `임차인은 현재 "${settlementStatus}" 단계에서 무분쟁 금액과 보류 금액이 어떻게 나뉘는지 읽는 역할로 고정되어 있습니다.`;
+  }
+  if (demo.scenario === 'extension') {
+    return '임차인은 연장 제안이 올라왔을 때 승인 전까지 기존 계약이 유지되고, 승인 후에만 일정이 바뀐다는 점을 읽습니다.';
+  }
+  if (demo.scenario === 'termination') {
+    return '임차인은 중도 해지 합의 후 바로 정산 흐름으로 넘어가며, 이후 응답과 확인이 이어진다는 점을 읽습니다.';
+  }
+  return '임차인은 이미 leaseId 확인과 보증금 예치를 끝낸 상태로, 지금은 보호 상태와 만기 전 흐름을 읽는 역할입니다.';
+}
+
+function SummaryMetricCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-[20px] border border-white/10 bg-slate-950/45 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-3 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{value}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-400">{helper}</p>
+    </div>
+  );
 }

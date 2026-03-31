@@ -37,7 +37,6 @@ type OnchainSettlementPanelProps = {
 };
 
 type SettlementAction =
-  | 'record-inspection'
   | 'moveout'
   | 'claim'
   | 'tenant-accept-full'
@@ -51,10 +50,10 @@ type InspectionMode = 'verified-flow' | 'oracle-demo';
 type DemoIssueLevel = 'none' | 'minor' | 'major';
 
 const CATEGORY_OPTIONS = [
-  { value: '0', label: '청소비', hint: '최대 30만 원' },
-  { value: '1', label: '소모성 수리비', hint: '최대 50만 원' },
-  { value: '2', label: '시설 파손', hint: '최대 200만 원' },
-  { value: '3', label: '공과금/관리비', hint: '최대 50만 원' },
+  { value: '0', label: '청소비', hint: '최대 30만 원', maxKRW: 300000 },
+  { value: '1', label: '소모성 수리비', hint: '최대 50만 원', maxKRW: 500000 },
+  { value: '2', label: '시설 파손', hint: '최대 200만 원', maxKRW: 2000000 },
+  { value: '3', label: '공과금/관리비', hint: '최대 50만 원', maxKRW: 500000 },
 ] as const;
 
 const INSPECTION_CHECKLIST = [
@@ -165,17 +164,6 @@ export default function OnchainSettlementPanel({
     },
   });
 
-  const { data: leaseDocuments } = useReadContract({
-    address: CONTRACT_ADDRESSES.JeonseVault,
-    abi: VAULT_ABI,
-    functionName: 'getLeaseDocuments',
-    args: leaseReady ? [leaseId as `0x${string}`] : undefined,
-    query: {
-      enabled: leaseReady,
-      refetchInterval: 5000,
-    },
-  });
-
   const { data: hugRole } = useReadContract({
     address: CONTRACT_ADDRESSES.JeonseVault,
     abi: VAULT_ABI,
@@ -203,6 +191,9 @@ export default function OnchainSettlementPanel({
   const heldAmount = settlement?.[5];
   const immediateReturnAmount = settlement?.[6];
   const finalLandlordAmount = settlement?.[7];
+  const settlementEvidenceHash = settlement?.[8];
+  const tenantResponseHash = settlement?.[9];
+  const resolutionHash = settlement?.[10];
   const holdCapKRW = useMemo(
     () => (holdCap ? Math.round(Number(formatEther(holdCap))) : 3000000),
     [holdCap],
@@ -230,6 +221,16 @@ export default function OnchainSettlementPanel({
     (stateNum === 1 || stateNum === 3) &&
     settlementStatusNum === 0 &&
     (isTenant || isLandlord);
+  const claimWindowOpen =
+    settlementStatusNum === 1 &&
+    claimDeadline !== undefined &&
+    claimDeadline > BigInt(0) &&
+    nowSec <= claimDeadline;
+  const responseWindowOpen =
+    settlementStatusNum === 2 &&
+    responseDeadline !== undefined &&
+    responseDeadline > BigInt(0) &&
+    nowSec <= responseDeadline;
   const canFinalizeAfterDeadline =
     settlementStatusNum === 2 &&
     responseDeadline !== undefined &&
@@ -265,22 +266,35 @@ export default function OnchainSettlementPanel({
     [inspectionMemoHash, selectedEvidenceCount, uploadedEvidence?.bundleHash],
   );
   const inspectionReady = verifiedInspectionItems.every((item) => item.ready);
-  const inspectionChecklistHash = useMemo(() => {
-    const payload = JSON.stringify({
-      checks: verifiedInspectionItems.map((item) => ({
-        label: item.label,
-        checked: item.ready,
-      })),
-      photoCount: selectedEvidenceCount,
-    });
-    return hashText(payload);
-  }, [selectedEvidenceCount, verifiedInspectionItems]);
-  const latestDocumentHash = leaseDocuments?.[0];
-  const latestDocumentRecordedAt = leaseDocuments?.[3];
-  const inspectionAnchoredOnchain =
-    typeof latestDocumentHash === 'string' &&
+  const currentCategoryCap = useMemo(
+    () => CATEGORY_OPTIONS.find((option) => option.value === category)?.maxKRW ?? CATEGORY_OPTIONS[0].maxKRW,
+    [category],
+  );
+  const claimAmountWei = useMemo(() => parseWeiInput(claimAmount), [claimAmount]);
+  const partialAcceptedAmountWei = useMemo(() => parseWeiInput(partialAcceptedAmount), [partialAcceptedAmount]);
+  const resolutionAmountWei = useMemo(() => parseWeiInput(resolutionAmount), [resolutionAmount]);
+  const claimAmountWithinLimits =
+    claimAmountWei !== null &&
+    claimAmountWei > BigInt(0) &&
+    (!holdCap || claimAmountWei <= holdCap) &&
+    claimAmountWei <= parseEther(String(currentCategoryCap));
+  const partialAcceptValid =
+    partialAcceptedAmountWei !== null &&
+    partialAcceptedAmountWei > BigInt(0) &&
+    claimedAmount !== undefined &&
+    partialAcceptedAmountWei < claimedAmount;
+  const resolutionAmountWithinHeld =
+    resolutionAmountWei !== null &&
+    heldAmount !== undefined &&
+    resolutionAmountWei <= heldAmount;
+  const settlementEvidenceRecorded = hasMeaningfulHash(settlementEvidenceHash);
+  const tenantResponseRecorded = hasMeaningfulHash(tenantResponseHash);
+  const resolutionRecorded = hasMeaningfulHash(resolutionHash);
+  const uploadedEvidenceMatchesSettlement =
+    settlementEvidenceRecorded &&
     !!uploadedEvidence?.bundleHash &&
-    latestDocumentHash.toLowerCase() === uploadedEvidence.bundleHash.toLowerCase();
+    typeof settlementEvidenceHash === 'string' &&
+    settlementEvidenceHash.toLowerCase() === uploadedEvidence.bundleHash.toLowerCase();
 
   const demoOracle = useMemo(() => {
     const issueEntries = ORACLE_ISSUES.map((item) => ({
@@ -375,17 +389,6 @@ export default function OnchainSettlementPanel({
       return;
     }
 
-    if (action === 'record-inspection') {
-      onActivity({
-        title: '퇴실 점검 해시를 체인에 남겼어요',
-        description: '업로드한 증빙 번들과 체크리스트 해시가 온체인 근거로 기록되었습니다.',
-        tone: 'success',
-        txHash: receipt.transactionHash,
-        leaseId,
-      });
-      return;
-    }
-
     if (action === 'claim') {
       onActivity({
         title: '정산 청구가 등록됐어요',
@@ -463,38 +466,14 @@ export default function OnchainSettlementPanel({
     });
   }
 
-  function handleRecordInspection() {
-    if (!uploadedEvidence?.bundleHash || !inspectionChecklistHash || !inspectionMemoHash) return;
-
-    actionRef.current = 'record-inspection';
-    onActivity({
-      title: '퇴실 점검 해시를 전송했어요',
-      description: '증빙 번들, 점검 메모, 체크리스트 해시를 체인에 남겨 이후 정산 근거로 사용합니다.',
-      tone: 'info',
-      leaseId,
-    });
-    writeContract({
-      address: CONTRACT_ADDRESSES.JeonseVault,
-      abi: VAULT_ABI,
-      functionName: 'attachLeaseDocuments',
-      args: [
-        leaseId as `0x${string}`,
-        uploadedEvidence.bundleHash,
-        inspectionMemoHash,
-        inspectionChecklistHash,
-      ],
-    });
-  }
-
   function handleClaim() {
-    const normalizedAmount = digitsOnly(claimAmount);
     const evidenceHash = uploadedEvidence?.bundleHash;
-    if (!normalizedAmount || !evidenceHash) return;
+    if (claimAmountWei === null || claimAmountWei <= BigInt(0) || !evidenceHash) return;
 
     actionRef.current = 'claim';
     onActivity({
       title: '정산 청구를 전송했어요',
-      description: '업로드한 증빙 번들 해시와 함께 카테고리 상한, 보류 한도를 체인에서 검증합니다.',
+      description: '업로드한 증빙 번들 해시를 evidenceHash로 함께 보내고, 카테고리 상한과 보류 한도를 체인에서 검증합니다.',
       tone: 'info',
       leaseId,
     });
@@ -505,7 +484,7 @@ export default function OnchainSettlementPanel({
       args: [
         leaseId as `0x${string}`,
         Number(category),
-        parseEther(normalizedAmount),
+        claimAmountWei,
         evidenceHash,
       ],
     });
@@ -597,9 +576,8 @@ export default function OnchainSettlementPanel({
   }
 
   function handleTenantAcceptPartial() {
-    const normalizedAmount = digitsOnly(partialAcceptedAmount);
     const responseHash = hashText(responseMemo);
-    if (!normalizedAmount || !responseHash) return;
+    if (partialAcceptedAmountWei === null || partialAcceptedAmountWei <= BigInt(0) || !responseHash) return;
 
     actionRef.current = 'tenant-accept-partial';
     onActivity({
@@ -615,7 +593,7 @@ export default function OnchainSettlementPanel({
       args: [
         leaseId as `0x${string}`,
         1,
-        parseEther(normalizedAmount),
+        partialAcceptedAmountWei,
         responseHash,
       ],
     });
@@ -657,9 +635,8 @@ export default function OnchainSettlementPanel({
   }
 
   function handleResolveByHug() {
-    const normalizedAmount = digitsOnly(resolutionAmount);
     const resolutionHash = hashText(resolutionMemo);
-    if (!normalizedAmount || !resolutionHash) return;
+    if (resolutionAmountWei === null || resolutionAmountWei < BigInt(0) || !resolutionHash) return;
 
     actionRef.current = 'hug-resolve';
     onActivity({
@@ -672,7 +649,7 @@ export default function OnchainSettlementPanel({
       address: CONTRACT_ADDRESSES.JeonseVault,
       abi: VAULT_ABI,
       functionName: 'resolveSettlementByHug',
-      args: [leaseId as `0x${string}`, parseEther(normalizedAmount), resolutionHash],
+      args: [leaseId as `0x${string}`, resolutionAmountWei, resolutionHash],
     });
   }
 
@@ -784,7 +761,7 @@ export default function OnchainSettlementPanel({
 
         <ActionBlock
           title="퇴실 점검 흐름"
-          description="일반 사용자 입장에서는 이 화면 안에서 퇴실 점검 체크, 사진·문서 업로드, 정산 요청, 응답, 최종 배분까지 이어집니다. 실사용형은 증빙 업로드와 해시 기록 중심이고, 자동 판정은 별도 데모 레이어로 제공됩니다."
+          description="일반 사용자 입장에서는 이 화면 안에서 퇴실 점검 체크, 사진·문서 업로드, 정산 요청, 응답, 최종 배분까지 이어집니다. 실사용형은 증빙 번들 준비 후 정산 청구 시 evidenceHash를 체인에 남기는 흐름이고, 자동 판정은 별도 데모 레이어로 제공합니다."
         >
           {inspectionMode === 'verified-flow' ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -812,25 +789,25 @@ export default function OnchainSettlementPanel({
               ))}
               <div
                 className={`rounded-[22px] border p-4 ${
-                  inspectionAnchoredOnchain
+                  settlementEvidenceRecorded
                     ? 'border-cyan-300/20 bg-cyan-300/10'
                     : 'border-white/10 bg-slate-950/40'
                 }`}
               >
-                <p className="text-sm font-semibold text-white">온체인 점검 기록</p>
+                <p className="text-sm font-semibold text-white">온체인 evidenceHash</p>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  {inspectionAnchoredOnchain
-                    ? '증빙 해시와 점검 요약이 이미 체인에 기록돼 정산 근거로 바로 이어집니다.'
-                    : '증빙과 메모가 준비되면 해시를 체인에 남겨 실제 정산 청구와 연결합니다.'}
+                  {settlementEvidenceRecorded
+                    ? '정산 청구와 함께 증빙 번들 해시가 evidenceHash로 기록돼 실제 정산 근거가 됩니다.'
+                    : '증빙 번들은 먼저 준비되며, 실제 체인 기록은 정산 청구를 제출할 때 evidenceHash로 남습니다.'}
                 </p>
                 <span
                   className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
-                    inspectionAnchoredOnchain
+                    settlementEvidenceRecorded
                       ? 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100'
                       : 'border-white/10 bg-white/[0.03] text-slate-300'
                   }`}
                 >
-                  {inspectionAnchoredOnchain ? '체인 기록 완료' : '체인 기록 전'}
+                  {settlementEvidenceRecorded ? '청구에 반영됨' : '청구 전'}
                 </span>
               </div>
             </div>
@@ -1110,19 +1087,19 @@ export default function OnchainSettlementPanel({
             <div className="mt-4 rounded-[22px] border border-white/10 bg-slate-950/45 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-white">실제형 검증: 퇴실 점검 해시 기록</p>
+                  <p className="text-sm font-semibold text-white">실제형 검증: 정산 청구 전 증빙 준비</p>
                   <p className="mt-2 text-sm leading-6 text-slate-300">
-                    업로드한 증빙 번들과 체크리스트를 체인에 남겨야, 일반 사용자 입장에서도 이 사이트 안에서 점검 근거와 정산 요청이 이어지는 느낌이 유지됩니다.
+                    업로드한 증빙 번들과 체크리스트를 먼저 준비한 뒤, 정산 청구를 제출할 때 evidenceHash로 체인에 남깁니다. 이렇게 해야 원래 계약서 해시를 덮어쓰지 않고 실제 정산 근거만 따로 기록됩니다.
                   </p>
                 </div>
                 <span
                   className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                    inspectionAnchoredOnchain
+                    settlementEvidenceRecorded
                       ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100'
                       : 'border-white/10 bg-white/[0.03] text-slate-300'
                   }`}
                 >
-                  {inspectionAnchoredOnchain ? '체인 기록 완료' : '체인 기록 전'}
+                  {settlementEvidenceRecorded ? '청구에 반영됨' : '청구 전'}
                 </span>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -1131,9 +1108,9 @@ export default function OnchainSettlementPanel({
                   value={uploadedEvidence?.bundleHash ? formatAddress(uploadedEvidence.bundleHash, 10, 8) : '아직 없음'}
                 />
                 <MetricCard
-                  label="최신 온체인 문서"
-                  value={typeof latestDocumentHash === 'string' && latestDocumentHash !== `0x${'0'.repeat(64)}` ? formatAddress(latestDocumentHash, 10, 8) : '아직 없음'}
-                  helper={latestDocumentRecordedAt && latestDocumentRecordedAt > BigInt(0) ? `기록 시각 ${formatDateTimeFromUnix(latestDocumentRecordedAt)}` : undefined}
+                  label="정산 evidenceHash"
+                  value={settlementEvidenceRecorded ? formatAddress(String(settlementEvidenceHash), 10, 8) : '아직 없음'}
+                  helper={uploadedEvidenceMatchesSettlement ? '현재 업로드 번들과 일치합니다.' : '정산 청구 제출 시 이 값이 기록됩니다.'}
                 />
                 <MetricCard
                   label="체크리스트 상태"
@@ -1141,39 +1118,57 @@ export default function OnchainSettlementPanel({
                   helper={`증빙 ${selectedEvidenceCount}건 · 자동 점검 ${verifiedInspectionItems.filter((item) => item.ready).length}/${verifiedInspectionItems.length}`}
                 />
               </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  onClick={handleRecordInspection}
-                  disabled={!isLandlord || !uploadedEvidence?.bundleHash || !inspectionReady || !inspectionChecklistHash || !inspectionMemoHash || inspectionAnchoredOnchain || isPending || isConfirming}
-                  className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isPending ? '지갑 승인 대기...' : isConfirming ? '체인 기록 확인 중...' : '퇴실 점검 해시를 체인에 기록'}
-                </button>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <MetricCard
+                  label="임차인 응답 해시"
+                  value={tenantResponseRecorded ? formatAddress(String(tenantResponseHash), 10, 8) : '아직 없음'}
+                  helper="respondToSettlementClaim 호출 시 기록됩니다."
+                />
+                <MetricCard
+                  label="HUG 조정 해시"
+                  value={resolutionRecorded ? formatAddress(String(resolutionHash), 10, 8) : '아직 없음'}
+                  helper="resolveSettlementByHug 호출 시 기록됩니다."
+                />
+                <MetricCard
+                  label="현재 정산 단계"
+                  value={SETTLEMENT_STATUS[settlementStatusNum] || '정산 없음'}
+                  helper={
+                    responseWindowOpen
+                      ? '임차인 응답 기간이 열려 있습니다.'
+                      : canFinalizeAfterDeadline
+                        ? '응답 기한이 지나 기한 경과 확정이 가능합니다.'
+                        : '현재 저장된 온체인 정산 상태를 기준으로 표시합니다.'
+                  }
+                />
               </div>
-              {!inspectionAnchoredOnchain ? (
+              {!settlementEvidenceRecorded ? (
                 <p className="mt-3 text-xs text-slate-400">
-                  임대인 지갑으로 연결한 뒤, 업로드한 증빙과 체크리스트를 먼저 체인에 남겨야 실제 정산 청구를 제출할 수 있습니다.
+                  임대인 지갑으로 연결한 뒤, 증빙 번들을 준비하고 정산 청구를 제출하면 evidenceHash가 체인에 기록됩니다.
                 </p>
               ) : null}
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 onClick={handleClaim}
-                disabled={!inspectionReady || !inspectionAnchoredOnchain || !digitsOnly(claimAmount) || !uploadedEvidence?.bundleHash || isPending || isConfirming}
+                disabled={!isLandlord || !inspectionReady || !claimWindowOpen || !claimAmountWithinLimits || !uploadedEvidence?.bundleHash || isPending || isConfirming}
                 className="rounded-full bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {isPending ? '지갑 승인 대기...' : isConfirming ? '청구 확인 중...' : '정산 청구 제출'}
               </button>
             </div>
-            {!uploadedEvidence || !inspectionAnchoredOnchain ? (
+            {!uploadedEvidence || !claimWindowOpen || !claimAmountWithinLimits ? (
               <p className="mt-3 text-xs text-slate-400">
-                정산 청구 전에는 퇴실 점검 체크를 마치고, 최소 1개 이상의 증빙 파일을 업로드해 번들 해시를 만든 뒤 체인에 점검 기록까지 남겨야 합니다.
+                {!claimWindowOpen
+                  ? '청구 기한이 지나면 더 이상 새 정산 청구를 올릴 수 없습니다. 기한 종료 후에는 자동 반환 또는 기존 청구 정리 흐름으로 넘어갑니다.'
+                  : !claimAmountWithinLimits
+                    ? `청구 금액은 선택한 카테고리 상한(${formatInputKRW(String(currentCategoryCap))})과 전체 보류 상한 안에 있어야 합니다.`
+                    : '정산 청구 전에는 퇴실 점검 체크를 마치고, 최소 1개 이상의 증빙 파일을 업로드해 번들 해시를 만들어야 합니다.'}
               </p>
             ) : null}
           </ActionBlock>
         ) : null}
 
-        {settlementStatusNum === 2 && isTenant ? (
+        {responseWindowOpen && isTenant ? (
           <ActionBlock
             title="3. 임차인 응답"
             description="전액 수락, 일부 수락, 이의 제기 중 하나를 선택해 실제 정산 흐름을 진행할 수 있습니다."
@@ -1190,7 +1185,7 @@ export default function OnchainSettlementPanel({
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 onClick={handleTenantAcceptFull}
-                disabled={!claimedAmount || !hashText(responseMemo) || isPending || isConfirming}
+                disabled={!claimedAmount || !hashText(responseMemo) || !responseWindowOpen || isPending || isConfirming}
                 className="rounded-full bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               >
                 전액 수락
@@ -1203,7 +1198,7 @@ export default function OnchainSettlementPanel({
                 />
                 <button
                   onClick={handleTenantAcceptPartial}
-                  disabled={!digitsOnly(partialAcceptedAmount) || !hashText(responseMemo) || isPending || isConfirming}
+                  disabled={!partialAcceptValid || !hashText(responseMemo) || !responseWindowOpen || isPending || isConfirming}
                   className="rounded-full border border-white/10 px-3 py-2 text-xs text-slate-200 transition hover:border-emerald-300/30"
                 >
                   일부 수락
@@ -1211,12 +1206,28 @@ export default function OnchainSettlementPanel({
               </div>
               <button
                 onClick={handleTenantDispute}
-                disabled={!hashText(responseMemo) || isPending || isConfirming}
+                disabled={!hashText(responseMemo) || !responseWindowOpen || isPending || isConfirming}
                 className="rounded-full border border-rose-400/30 bg-rose-400/10 px-5 py-3 text-sm font-semibold text-rose-100 transition hover:border-rose-300/40 hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 이의 제기
               </button>
             </div>
+            {!partialAcceptValid ? (
+              <p className="mt-3 text-xs text-slate-400">
+                일부 수락 금액은 0보다 크고 현재 청구 금액 {formatKRW(claimedAmount)} 보다 작아야 합니다.
+              </p>
+            ) : null}
+          </ActionBlock>
+        ) : null}
+
+        {settlementStatusNum === 2 && !responseWindowOpen ? (
+          <ActionBlock
+            title="3. 임차인 응답 마감"
+            description="임차인 응답 기한이 지나 직접 응답 트랜잭션은 더 이상 열리지 않습니다. 이제 누구나 기한 경과 정산 확정을 실행할 수 있습니다."
+          >
+            <p className="text-sm leading-6 text-slate-300">
+              응답 마감 {formatDateTimeFromUnix(responseDeadline)}
+            </p>
           </ActionBlock>
         ) : null}
 
@@ -1260,12 +1271,17 @@ export default function OnchainSettlementPanel({
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 onClick={handleResolveByHug}
-                disabled={!digitsOnly(resolutionAmount) || !hashText(resolutionMemo) || isPending || isConfirming}
+                disabled={!resolutionAmountWithinHeld || !hashText(resolutionMemo) || isPending || isConfirming}
                 className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {isPending ? '지갑 승인 대기...' : isConfirming ? '조정 반영 중...' : 'HUG 최종 배분 확정'}
               </button>
             </div>
+            {!resolutionAmountWithinHeld ? (
+              <p className="mt-3 text-xs text-slate-400">
+                임대인 배분 금액은 현재 보류 중 금액 {formatKRW(heldAmount)} 이하여야 합니다.
+              </p>
+            ) : null}
           </ActionBlock>
         ) : null}
 
@@ -1349,4 +1365,19 @@ function oracleStatusTone(status: 'full-return' | 'partial-hold' | 'manual-revie
   if (status === 'full-return') return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-100';
   if (status === 'partial-hold') return 'border-amber-400/30 bg-amber-400/10 text-amber-100';
   return 'border-rose-400/30 bg-rose-400/10 text-rose-100';
+}
+
+function parseWeiInput(value: string) {
+  const normalized = digitsOnly(value);
+  if (!normalized) return null;
+
+  try {
+    return parseEther(normalized);
+  } catch {
+    return null;
+  }
+}
+
+function hasMeaningfulHash(value: unknown) {
+  return typeof value === 'string' && value !== `0x${'0'.repeat(64)}`;
 }

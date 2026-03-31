@@ -76,6 +76,14 @@ export default function OnchainLeaseChangePanel({
   const responseDeadline = request?.[3];
   const additionalDays = request?.[4];
   const requestHash = request?.[5];
+  const nowSec = BigInt(Math.floor(Date.now() / 1000));
+  const hasPendingRequest = changeTypeNum !== 0;
+  const requestExpired =
+    hasPendingRequest &&
+    responseDeadline !== undefined &&
+    responseDeadline > BigInt(0) &&
+    nowSec > responseDeadline;
+  const actionableChangeTypeNum = requestExpired ? 0 : changeTypeNum;
 
   const connectedRole = useMemo(() => {
     if (!address) return '연결 안 됨';
@@ -89,18 +97,21 @@ export default function OnchainLeaseChangePanel({
     !!proposer &&
     proposer !== '0x0000000000000000000000000000000000000000' &&
     address.toLowerCase() !== proposer.toLowerCase() &&
-    connectedRole !== '조회 전용';
+    connectedRole !== '조회 전용' &&
+    !requestExpired;
   const isProposer =
     !!address &&
     !!proposer &&
     proposer !== '0x0000000000000000000000000000000000000000' &&
-    address.toLowerCase() === proposer.toLowerCase();
+    address.toLowerCase() === proposer.toLowerCase() &&
+    !requestExpired;
+  const canClearExpiredRequest = hasPendingRequest && requestExpired && Boolean(address);
   const canProposeExtension =
-    changeTypeNum === 0 &&
+    actionableChangeTypeNum === 0 &&
     (connectedRole === '임차인' || connectedRole === '임대인') &&
     (stateNum === 1 || stateNum === 3);
   const canProposeTermination =
-    changeTypeNum === 0 &&
+    actionableChangeTypeNum === 0 &&
     (connectedRole === '임차인' || connectedRole === '임대인') &&
     stateNum === 1;
 
@@ -243,16 +254,27 @@ export default function OnchainLeaseChangePanel({
                 : '만기 도래'
           }
         />
-        <MetricCard label="변경 요청 상태" value={LEASE_CHANGE_TYPE[changeTypeNum] || '변경 없음'} helper={leaseId} mono />
+        <MetricCard
+          label="변경 요청 상태"
+          value={requestExpired ? '기한 경과' : LEASE_CHANGE_TYPE[changeTypeNum] || '변경 없음'}
+          helper={requestExpired ? '응답 기한이 지나 새 요청을 다시 보낼 수 있습니다.' : leaseId}
+          mono={!requestExpired}
+        />
         <MetricCard label="제안자" value={formatAddress(proposer)} helper={formatFullAddress(proposer)} />
         <MetricCard
           label="응답 마감"
           value={formatDateTimeFromUnix(responseDeadline)}
-          helper={requestedAt && requestedAt > BigInt(0) ? `요청 시각 ${formatDateTimeFromUnix(requestedAt)}` : '대기 중인 요청 없음'}
+          helper={
+            requestExpired
+              ? '응답 기한이 지나 만료된 요청입니다.'
+              : requestedAt && requestedAt > BigInt(0)
+                ? `요청 시각 ${formatDateTimeFromUnix(requestedAt)}`
+                : '대기 중인 요청 없음'
+          }
         />
       </div>
 
-      {changeTypeNum === 0 ? (
+      {actionableChangeTypeNum === 0 ? (
         <div className="mt-5 grid gap-4 xl:grid-cols-2">
           <ActionBlock
             title="계약 연장 제안"
@@ -275,13 +297,24 @@ export default function OnchainLeaseChangePanel({
               />
             </label>
             <div className="mt-4">
-              <button
-                onClick={handleRequestExtension}
-                disabled={!canProposeExtension || !digitsOnly(extensionDays) || !hashText(requestMemo) || isPending || isConfirming}
-                className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-              >
-                {isPending ? '지갑 승인 대기...' : isConfirming ? '연장 제안 확인 중...' : '계약 연장 제안'}
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleRequestExtension}
+                  disabled={!canProposeExtension || !digitsOnly(extensionDays) || !hashText(requestMemo) || isPending || isConfirming}
+                  className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                >
+                  {isPending ? '지갑 승인 대기...' : isConfirming ? '연장 제안 확인 중...' : '계약 연장 제안'}
+                </button>
+                {canClearExpiredRequest ? (
+                  <button
+                    onClick={handleCancel}
+                    disabled={isPending || isConfirming}
+                    className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    만료된 요청 정리
+                  </button>
+                ) : null}
+              </div>
             </div>
           </ActionBlock>
 
@@ -298,13 +331,24 @@ export default function OnchainLeaseChangePanel({
               />
             </label>
             <div className="mt-4">
-              <button
-                onClick={handleRequestTermination}
-                disabled={!canProposeTermination || !hashText(requestMemo) || isPending || isConfirming}
-                className="rounded-full border border-amber-300/20 bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-              >
-                {isPending ? '지갑 승인 대기...' : isConfirming ? '해지 제안 확인 중...' : '중도 해지 제안'}
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleRequestTermination}
+                  disabled={!canProposeTermination || !hashText(requestMemo) || isPending || isConfirming}
+                  className="rounded-full border border-amber-300/20 bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                >
+                  {isPending ? '지갑 승인 대기...' : isConfirming ? '해지 제안 확인 중...' : '중도 해지 제안'}
+                </button>
+                {canClearExpiredRequest ? (
+                  <button
+                    onClick={handleCancel}
+                    disabled={isPending || isConfirming}
+                    className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    만료된 요청 정리
+                  </button>
+                ) : null}
+              </div>
             </div>
           </ActionBlock>
         </div>

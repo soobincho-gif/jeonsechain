@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { decodeEventLog, parseEther } from 'viem';
 import { CONTRACT_ADDRESSES, CONTRACT_STATE, ERC20_ABI, STATE_COLOR, VAULT_ABI } from '@/lib/contracts';
-import { explorerLink, formatAddress, formatFullAddress, formatKRW } from '@/lib/format';
+import { explorerLink, formatAddress, formatFullAddress, formatKRW, isMeaningfulAddress } from '@/lib/format';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
 type TenantPanelProps = {
@@ -14,7 +14,7 @@ type TenantPanelProps = {
   onActivity: (activity: Omit<ActivityItem, 'id' | 'timestamp'>) => void;
 };
 
-type TenantAction = 'mint' | 'approve' | 'deposit' | null;
+type TenantAction = 'mint-self' | 'mint-tenant' | 'approve' | 'deposit' | null;
 
 export default function TenantPanel({
   activeLease,
@@ -97,14 +97,17 @@ export default function TenantPanel({
     },
   });
 
-  const expectedDeposit = leaseInfo?.[2];
-  const stateNum = leaseInfo ? Number(leaseInfo[4]) : -1;
+  const hasLeaseRecord = Boolean(leaseInfo) && isMeaningfulAddress(leaseInfo ? String(leaseInfo[0]) : undefined);
+  const expectedDeposit = hasLeaseRecord ? leaseInfo?.[2] : undefined;
+  const tenantAddress = hasLeaseRecord && leaseInfo ? String(leaseInfo[0]) : '';
+  const stateNum = hasLeaseRecord && leaseInfo ? Number(leaseInfo[4]) : -1;
   const approvalReady = expectedDeposit !== undefined && (allowance ?? BigInt(0)) >= expectedDeposit;
   const balanceReady = expectedDeposit !== undefined && (krwBalance ?? BigInt(0)) >= expectedDeposit;
   const connectedIsTenant =
-    address && leaseInfo ? address.toLowerCase() === String(leaseInfo[0]).toLowerCase() : false;
+    address && tenantAddress ? address.toLowerCase() === tenantAddress.toLowerCase() : false;
   const isMintOwner =
     address && mockOwner ? address.toLowerCase() === String(mockOwner).toLowerCase() : false;
+  const fundingAmount = expectedDeposit ?? parseEther('1000000000');
 
   useEffect(() => {
     if (!receipt || handledReceiptRef.current === receipt.transactionHash) return;
@@ -113,12 +116,25 @@ export default function TenantPanel({
     const action = actionRef.current;
     actionRef.current = null;
 
-    if (action === 'mint') {
+    if (action === 'mint-self') {
       onActivity({
         title: 'KRW 지급 완료 (테스트넷)',
-        description: '현재 연결 지갑으로 10억 KRW를 민팅했습니다.',
+        description: `현재 연결 지갑으로 ${formatKRW(fundingAmount)}를 준비했습니다.`,
         tone: 'success',
         txHash: receipt.transactionHash,
+      });
+      return;
+    }
+
+    if (action === 'mint-tenant') {
+      onActivity({
+        title: '임차인 KRW 준비 완료 (테스트넷)',
+        description: tenantAddress
+          ? `${formatAddress(tenantAddress)} 지갑에 ${formatKRW(fundingAmount)}를 준비했습니다. 이제 임차인 지갑으로 전환해 승인과 예치를 진행하면 됩니다.`
+          : '선택한 계약의 임차인 지갑으로 보증금 시연용 KRW를 준비했습니다.',
+        tone: 'success',
+        txHash: receipt.transactionHash,
+        leaseId: normalizedLeaseId,
       });
       return;
     }
@@ -184,6 +200,8 @@ export default function TenantPanel({
     onActivity,
     onDepositComplete,
     receipt,
+    fundingAmount,
+    tenantAddress,
   ]);
 
   function pinLease() {
@@ -200,17 +218,35 @@ export default function TenantPanel({
 
   function handleMint() {
     if (!address) return;
-    actionRef.current = 'mint';
+    actionRef.current = 'mint-self';
     onActivity({
       title: 'KRW 지급 요청 (테스트넷)',
-      description: 'MockKRW 관리자 권한으로 현재 지갑에 10억 KRW를 민팅합니다.',
+      description: 'MockKRW 관리자 권한으로 현재 연결 지갑에 시연용 KRW를 준비합니다.',
       tone: 'info',
     });
     writeContract({
       address: CONTRACT_ADDRESSES.MockKRW,
       abi: ERC20_ABI,
       functionName: 'mint',
-      args: [address, parseEther('1000000000')],
+      args: [address, fundingAmount],
+    });
+  }
+
+  function handleFundTenant() {
+    if (!tenantAddress) return;
+    actionRef.current = 'mint-tenant';
+    onLeaseSelected(normalizedLeaseId);
+    onActivity({
+      title: '임차인 KRW 준비 요청 (테스트넷)',
+      description: 'MockKRW 관리자 권한으로 선택한 계약의 임차인 지갑에 보증금 시연용 KRW를 준비합니다.',
+      tone: 'info',
+      leaseId: normalizedLeaseId,
+    });
+    writeContract({
+      address: CONTRACT_ADDRESSES.MockKRW,
+      abi: ERC20_ABI,
+      functionName: 'mint',
+      args: [tenantAddress as `0x${string}`, fundingAmount],
     });
   }
 
@@ -348,7 +384,7 @@ export default function TenantPanel({
             />
           </div>
 
-          {leaseInfo ? (
+          {hasLeaseRecord && leaseInfo ? (
             <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`rounded-full px-3 py-1 text-xs font-semibold ${STATE_COLOR[stateNum] || 'border border-white/10 bg-white/[0.04] text-slate-200'}`}>
@@ -382,6 +418,14 @@ export default function TenantPanel({
                 </span>
               </label>
             </div>
+          ) : isLeaseIdReady ? (
+            <div className="mt-5 rounded-[24px] border border-dashed border-amber-400/20 bg-amber-400/10 px-5 py-10 text-center">
+              <p className="text-sm font-medium text-white">온체인 계약을 찾지 못했어요.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-200">
+                없는 leaseId이거나 아직 실제 계약 등록이 끝나지 않은 값일 수 있습니다. 임대인이 생성한 leaseId를 다시 확인한 뒤
+                이어서 진행해 주세요.
+              </p>
+            </div>
           ) : (
             <div className="mt-5 rounded-[24px] border border-dashed border-white/10 bg-slate-950/35 px-5 py-10 text-center">
               <p className="text-sm font-medium text-white">계약을 선택하면 보증금과 임차인 주소를 바로 보여드립니다.</p>
@@ -393,13 +437,33 @@ export default function TenantPanel({
 
           <div className="mt-6 flex flex-wrap gap-3">
             {isMintOwner ? (
-              <button
-                onClick={handleMint}
-                disabled={isPending || isConfirming}
-                className="rounded-full border border-white/10 px-4 py-3 text-sm text-slate-100 transition hover:border-teal-300/30 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                KRW 10억 지급 (테스트넷)
-              </button>
+              <>
+                {tenantAddress && !connectedIsTenant ? (
+                  <button
+                    onClick={handleFundTenant}
+                    disabled={!isLeaseIdReady || isPending || isConfirming}
+                    className="rounded-full border border-teal-300/25 bg-teal-300/10 px-4 py-3 text-sm text-teal-50 transition hover:border-teal-200/40 hover:bg-teal-300/15 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isPending && actionRef.current === 'mint-tenant'
+                      ? '임차인 KRW 준비 중...'
+                      : isConfirming && actionRef.current === 'mint-tenant'
+                        ? '준비 확인 중...'
+                        : '선택한 임차인에게 KRW 준비'}
+                  </button>
+                ) : null}
+
+                <button
+                  onClick={handleMint}
+                  disabled={isPending || isConfirming}
+                  className="rounded-full border border-white/10 px-4 py-3 text-sm text-slate-100 transition hover:border-teal-300/30 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {isPending && actionRef.current === 'mint-self'
+                    ? '내 지갑 KRW 준비 중...'
+                    : isConfirming && actionRef.current === 'mint-self'
+                      ? '준비 확인 중...'
+                      : '현재 지갑에 KRW 준비'}
+                </button>
+              </>
             ) : (
               <div className="rounded-full border border-white/10 px-4 py-3 text-xs text-slate-400">
                 MockKRW 관리자 지갑에서만 추가 민팅 가능: {mockOwner ? formatAddress(String(mockOwner)) : '조회 중'}
@@ -450,6 +514,16 @@ export default function TenantPanel({
               </a>
             ) : null}
           </div>
+
+          {isMintOwner && tenantAddress && !connectedIsTenant ? (
+            <div className="mt-4 rounded-[20px] border border-teal-300/20 bg-teal-300/10 px-4 py-4">
+              <p className="text-sm font-semibold text-white">직접 시연용 권장 순서</p>
+              <p className="mt-2 text-sm leading-6 text-slate-200">
+                지금 연결된 지갑은 MockKRW 관리자라서 선택한 임차인 주소에 시연용 KRW를 준비할 수 있습니다. 준비가 끝나면 실제
+                임차인 지갑으로 전환해서 `Vault 사용 승인`과 `보증금 입금`을 이어가면 됩니다.
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-4">
@@ -457,8 +531,9 @@ export default function TenantPanel({
             title="권장 순서"
             lines={[
               '1. 임대인이 등록한 leaseId를 불러오고, 현재 지갑이 임차인 주소와 일치하는지 봅니다.',
-              '2. 계약 내용 확인 체크 후 KRW (테스트넷) 준비와 Vault 사용 승인을 진행합니다.',
-              '3. 승인 완료 후 보증금 예치를 실행하면 활성 계약과 모니터링 단계로 넘어갑니다.',
+              '2. 관리자 지갑이라면 먼저 선택한 임차인 주소에 KRW를 준비하고, 임차인 지갑으로 전환합니다.',
+              '3. 계약 내용 확인 체크 후 Vault 사용 승인을 진행합니다.',
+              '4. 승인 완료 후 보증금 예치를 실행하면 활성 계약과 모니터링 단계로 넘어갑니다.',
             ]}
           />
           <GuideCard

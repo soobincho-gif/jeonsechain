@@ -6,6 +6,7 @@ import { decodeEventLog } from 'viem';
 import {
   CONTRACT_ADDRESSES,
   CONTRACT_STATE,
+  NETWORK_LABEL,
   SETTLEMENT_STATUS,
   STATE_COLOR,
   STATE_DESCRIPTION,
@@ -17,7 +18,9 @@ import {
   formatDateTimeFromUnix,
   formatFullAddress,
   formatKRW,
+  isMeaningfulAddress,
 } from '@/lib/format';
+import { buildSepoliaShowcaseLeasePresets } from '@/lib/showcase-leases';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 import OnchainLeaseChangePanel from '@/components/OnchainLeaseChangePanel';
 import OnchainSettlementPanel from '@/components/OnchainSettlementPanel';
@@ -135,6 +138,9 @@ export default function LeaseViewer({
   const stateNum = info ? Number(info[4]) : -1;
   const settlementStatusNum = settlementInfo ? Number(settlementInfo[0]) : 0;
   const settlementClaimDeadline = settlementInfo?.[2];
+  const settlementEvidenceHash = settlementInfo?.[8];
+  const tenantResponseHash = settlementInfo?.[9];
+  const resolutionHash = settlementInfo?.[10];
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
   const settlementAllowsReturn =
     settlementStatusNum === 0 ||
@@ -244,6 +250,24 @@ export default function LeaseViewer({
   }
 
   const loading = infoLoading || daysLoading;
+  const showcasePresets = buildSepoliaShowcaseLeasePresets(activeLease?.leaseId);
+  const hasLeaseRecord =
+    Boolean(info) &&
+    Boolean(leaseData) &&
+    isMeaningfulAddress(info ? String(info[0]) : undefined) &&
+    Boolean(leaseData && leaseData[4] > BigInt(0));
+
+  function loadShowcaseLease(nextLeaseId: string, title: string) {
+    setLeaseId(nextLeaseId);
+    setQueried(nextLeaseId);
+    onLeaseSelected(nextLeaseId);
+    onActivity({
+      title,
+      description: 'Sepolia 직접 시연용 leaseId를 불러왔습니다. 상태와 반환 가능 여부를 바로 확인할 수 있습니다.',
+      tone: 'info',
+      leaseId: nextLeaseId,
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -261,6 +285,41 @@ export default function LeaseViewer({
               <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse" />
               실시간 갱신
             </span>
+          </div>
+
+          <div className="mt-5 rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{NETWORK_LABEL} 직접 시연 바로가기</p>
+                <p className="mt-2 text-sm leading-6 text-slate-200">
+                  새 계약은 ACTIVE 상태까지 바로 보여주고, 자동 반환은 별도로 준비한 반환 가능 leaseId로 불러오는 방식이 가장
+                  자연스럽습니다.
+                </p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-100">
+                ACTIVE 시연 / 반환 시연 분리
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 xl:grid-cols-3">
+              {showcasePresets.map((preset) => (
+                <ShowcaseLeaseCard
+                  key={preset.id}
+                  title={preset.title}
+                  description={preset.description}
+                  helper={preset.helper}
+                  leaseId={preset.leaseId}
+                  tone={preset.tone}
+                  buttonLabel={preset.buttonLabel}
+                  disabled={preset.disabled}
+                  onClick={
+                    preset.leaseId && preset.buttonLabel
+                      ? () => loadShowcaseLease(preset.leaseId!, `${preset.title} 불러오기`)
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
           </div>
 
           <div className="mt-6 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-slate-900/60 p-4 md:flex-row">
@@ -286,7 +345,7 @@ export default function LeaseViewer({
             />
           ) : loading ? (
             <LoadingState />
-          ) : info ? (
+          ) : hasLeaseRecord && info ? (
             <>
               <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
                 <div className="flex flex-wrap items-center gap-2">
@@ -392,11 +451,11 @@ export default function LeaseViewer({
                   <div>
                     <p className="text-sm font-semibold text-white">온체인 계약 근거</p>
                     <p className="mt-2 text-sm leading-6 text-slate-300">
-                      이번 배포본부터는 계약서 해시와 정상 종료·제때 반환·분쟁 여부 같은 신뢰 근거도 함께 조회할 수 있습니다.
+                      원래 계약 등록 시 남긴 문서 해시와, 퇴실 정산 과정에서 별도로 기록되는 evidenceHash·응답 해시·조정 해시를 분리해서 보여줍니다.
                     </p>
                   </div>
                   <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
-                    문서 + 신뢰 기록
+                    문서 + 정산 기록
                   </span>
                 </div>
 
@@ -407,7 +466,7 @@ export default function LeaseViewer({
                     helper={
                       leaseDocuments?.[3] && leaseDocuments[3] > BigInt(0)
                         ? `기록 시각 ${formatDateTimeFromUnix(leaseDocuments[3])}`
-                        : '계약서·특약·체크리스트 해시를 별도로 남길 수 있습니다.'
+                        : '계약 등록 시 계약서·특약·체크리스트 해시를 별도로 남길 수 있습니다.'
                     }
                   />
                   <InfoBox
@@ -449,7 +508,28 @@ export default function LeaseViewer({
                   <InfoBox
                     label="체크리스트 해시"
                     value={hasMeaningfulHash(leaseDocuments?.[2]) ? formatAddress(String(leaseDocuments?.[2]), 10, 8) : '없음'}
-                    helper="입주 또는 퇴실 점검 체크리스트 해시"
+                    helper="계약 등록 시 남긴 체크리스트 해시"
+                    mono
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <InfoBox
+                    label="정산 evidenceHash"
+                    value={hasMeaningfulHash(settlementEvidenceHash) ? formatAddress(String(settlementEvidenceHash), 10, 8) : '없음'}
+                    helper="submitSettlementClaim 때 기록되는 증빙 번들 해시"
+                    mono
+                  />
+                  <InfoBox
+                    label="임차인 응답 해시"
+                    value={hasMeaningfulHash(tenantResponseHash) ? formatAddress(String(tenantResponseHash), 10, 8) : '없음'}
+                    helper="respondToSettlementClaim 때 기록되는 응답 해시"
+                    mono
+                  />
+                  <InfoBox
+                    label="HUG 조정 해시"
+                    value={hasMeaningfulHash(resolutionHash) ? formatAddress(String(resolutionHash), 10, 8) : '없음'}
+                    helper="resolveSettlementByHug 때 기록되는 최종 조정 해시"
                     mono
                   />
                 </div>
@@ -481,13 +561,21 @@ export default function LeaseViewer({
             </>
           ) : (
             <EmptyState
-              title="계약 데이터를 찾지 못했어요"
-              description="leaseId 형식을 다시 확인하거나 등록 단계에서 생성된 값이 맞는지 확인해 주세요."
+              title="온체인 계약 데이터를 찾지 못했어요"
+              description="없는 leaseId이거나 아직 실제 계약 등록이 끝나지 않은 값일 수 있습니다. leaseId를 다시 확인하거나, 위의 Sepolia 시연 바로가기에서 준비된 계약을 불러와 주세요."
             />
           )}
         </div>
 
         <div className="space-y-4">
+          <GuideCard
+            title="Sepolia 시연 팁"
+            lines={[
+              '새 계약은 임대인 등록과 임차인 예치 직후 ACTIVE 상태까지 바로 보여줄 수 있습니다.',
+              '합의된 중도 해지로 EXPIRED 상태까지는 빠르게 갈 수 있지만, 자동 반환은 정산 점검 72시간이 지나야 열립니다.',
+              '그래서 발표나 시연에서는 ACTIVE 계약과 반환 가능 계약을 따로 준비해 불러오는 구성이 가장 안정적입니다.',
+            ]}
+          />
           <GuideCard
             title="모니터링 포인트"
             lines={[
@@ -547,6 +635,54 @@ function GuideCard({ title, lines }: { title: string; lines: string[] }) {
           </p>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ShowcaseLeaseCard({
+  title,
+  description,
+  helper,
+  leaseId,
+  tone,
+  buttonLabel,
+  disabled,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  helper: string;
+  leaseId?: string;
+  tone: 'active' | 'return' | 'note';
+  buttonLabel?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  const toneClass =
+    tone === 'active'
+      ? 'border-emerald-400/25 bg-emerald-400/10'
+      : tone === 'return'
+        ? 'border-cyan-300/25 bg-cyan-300/10'
+        : 'border-white/10 bg-white/[0.03]';
+
+  return (
+    <div className={`rounded-[22px] border p-4 ${toneClass}`}>
+      <p className="text-sm font-semibold text-white">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-200">{description}</p>
+      <p className="mt-3 text-xs leading-5 text-slate-300">{helper}</p>
+      {leaseId ? (
+        <p className="mt-3 break-all font-mono text-[11px] text-slate-200">{leaseId}</p>
+      ) : null}
+      {buttonLabel ? (
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          className="mt-4 rounded-full border border-white/10 px-4 py-2 text-sm text-white transition hover:border-cyan-300/30 hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          {buttonLabel}
+        </button>
+      ) : null}
     </div>
   );
 }

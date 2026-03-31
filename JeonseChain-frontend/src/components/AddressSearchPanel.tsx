@@ -20,7 +20,15 @@ export default function AddressSearchPanel({
   onDetailAddressChange,
 }: AddressSearchPanelProps) {
   const [query, setQuery] = useState(selectedAddress?.roadAddress ?? '');
-  const mapEmbedUrl = useMemo(() => buildMapEmbedUrl(selectedAddress), [selectedAddress]);
+  const normalizedQuery = query.trim();
+  const mapEmbedUrl = useMemo(
+    () => buildMapEmbedUrl(selectedAddress, detailAddress, normalizedQuery),
+    [detailAddress, normalizedQuery, selectedAddress],
+  );
+  const mapLinkUrl = useMemo(
+    () => buildMapLinkUrl(selectedAddress, detailAddress, normalizedQuery),
+    [detailAddress, normalizedQuery, selectedAddress],
+  );
 
   useEffect(() => {
     if (!selectedAddress) return;
@@ -38,11 +46,19 @@ export default function AddressSearchPanel({
     );
   }, [query]);
 
+  const canUseManualAddress =
+    normalizedQuery.length > 0 &&
+    normalizedQuery !== selectedAddress?.roadAddress.trim();
+  const manualAddressRecord = canUseManualAddress ? buildManualAddressRecord(normalizedQuery) : null;
+
   const selectedRisk = selectedAddress
     ? {
         score: selectedRiskOverride?.score ?? selectedAddress.riskScore,
         label: selectedRiskOverride?.label ?? selectedAddress.riskLabel,
-        sourceLabel: selectedRiskOverride?.sourceLabel ?? '기본 샘플 주소 기준',
+        sourceLabel:
+          selectedAddress.source === 'manual'
+            ? '직접 입력 주소 · 오라클 반영 전'
+            : selectedRiskOverride?.sourceLabel ?? '기본 샘플 주소 기준',
       }
     : null;
 
@@ -87,6 +103,32 @@ export default function AddressSearchPanel({
           </label>
 
           <div className="mt-4 grid gap-3">
+            {manualAddressRecord ? (
+              <button
+                type="button"
+                onClick={() => onSelect(manualAddressRecord)}
+                className={`rounded-[24px] border p-4 text-left transition ${
+                  selectedAddress?.id === manualAddressRecord.id
+                    ? 'border-cyan-300/30 bg-cyan-300/10'
+                    : 'border-cyan-300/20 bg-cyan-300/10 hover:border-cyan-300/30 hover:bg-cyan-300/15'
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{manualAddressRecord.roadAddress}</p>
+                    <p className="mt-1 text-sm text-slate-400">직접 입력 주소로 계약 등록 진행</p>
+                  </div>
+                  <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
+                    직접 입력
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-400">
+                  <span>주소록에 없는 위치도 등록 흐름으로 이어갈 수 있습니다.</span>
+                  <span>{selectedAddress?.id === manualAddressRecord.id ? '선택됨' : '선택 가능'}</span>
+                </div>
+              </button>
+            ) : null}
+
             {results.map((item) => {
               const selected = selectedAddress?.id === item.id;
               const displayRisk =
@@ -122,6 +164,12 @@ export default function AddressSearchPanel({
                 </button>
               );
             })}
+
+            {results.length === 0 && !manualAddressRecord ? (
+              <div className="rounded-[24px] border border-dashed border-white/10 bg-slate-950/35 px-4 py-6 text-sm text-slate-400">
+                검색 결과가 없습니다. 주소를 조금 더 정확하게 입력하거나, 위의 직접 입력 카드로 계속 진행해 보세요.
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
@@ -164,11 +212,11 @@ export default function AddressSearchPanel({
 
           <div className="mt-5 h-56 overflow-hidden rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_42%),linear-gradient(135deg,_rgba(2,6,23,0.92),_rgba(15,23,42,0.82))] p-4">
             <div className="relative h-full overflow-hidden rounded-[18px] border border-white/10">
-              {selectedAddress ? (
+              {mapEmbedUrl ? (
                 <>
                   <iframe
-                    key={selectedAddress.id}
-                    title={`${selectedAddress.building} 지도`}
+                    key={`${selectedAddress?.id ?? 'manual'}:${detailAddress}:${normalizedQuery}`}
+                    title={`${selectedAddress?.building ?? '입력 주소'} 지도`}
                     src={mapEmbedUrl}
                     loading="lazy"
                     className="absolute inset-0 h-full w-full"
@@ -184,9 +232,9 @@ export default function AddressSearchPanel({
                     <p className="mt-1 text-xs font-medium text-white">계약 등록 준비 완료</p>
                   </div>
                   <div className="absolute bottom-4 left-4 right-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3">
-                    <p className="text-sm font-semibold text-white">{selectedAddress.roadAddress}</p>
+                    <p className="text-sm font-semibold text-white">{selectedAddress?.roadAddress ?? normalizedQuery}</p>
                     <p className="mt-1 text-xs text-slate-400">
-                      {selectedAddress.building}
+                      {selectedAddress?.building ?? '직접 입력 주소'}
                       {detailAddress ? ` · ${detailAddress}` : ''}
                     </p>
                   </div>
@@ -207,9 +255,9 @@ export default function AddressSearchPanel({
             {selectedRisk ? (
               <p className="mt-2 text-xs text-slate-400">현재 표시된 위험 점수 출처: {selectedRisk.sourceLabel}</p>
             ) : null}
-            {selectedAddress ? (
+            {mapLinkUrl ? (
               <a
-                href={`https://www.openstreetmap.org/?mlat=${selectedAddress.lat}&mlon=${selectedAddress.lng}#map=17/${selectedAddress.lat}/${selectedAddress.lng}`}
+                href={mapLinkUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-3 inline-flex rounded-full border border-white/10 px-3 py-2 text-xs text-slate-200 transition hover:border-cyan-300/30 hover:bg-white/[0.05]"
@@ -224,16 +272,39 @@ export default function AddressSearchPanel({
   );
 }
 
-function buildMapEmbedUrl(record: AddressRecord | null) {
-  if (!record) return '';
+function buildManualAddressRecord(roadAddress: string): AddressRecord {
+  const district = roadAddress.split(' ')[1] || '직접 입력';
 
-  const delta = 0.0042;
-  const left = record.lng - delta;
-  const right = record.lng + delta;
-  const top = record.lat + delta;
-  const bottom = record.lat - delta;
+  return {
+    id: `manual:${roadAddress}`,
+    postalCode: '직접 입력',
+    roadAddress,
+    building: '직접 입력 주소',
+    district,
+    lat: 37.5665,
+    lng: 126.978,
+    riskScore: 0,
+    riskLabel: 'Monitor',
+    source: 'manual',
+  };
+}
 
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${record.lat}%2C${record.lng}`;
+function buildMapQuery(record: AddressRecord | null, detailAddress: string, fallbackQuery: string) {
+  const base = record?.roadAddress || fallbackQuery;
+  const query = [base, detailAddress.trim()].filter(Boolean).join(' ');
+  return query.trim();
+}
+
+function buildMapEmbedUrl(record: AddressRecord | null, detailAddress: string, fallbackQuery: string) {
+  const query = buildMapQuery(record, detailAddress, fallbackQuery);
+  if (!query) return '';
+  return `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=16&output=embed`;
+}
+
+function buildMapLinkUrl(record: AddressRecord | null, detailAddress: string, fallbackQuery: string) {
+  const query = buildMapQuery(record, detailAddress, fallbackQuery);
+  if (!query) return '';
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 function RiskBadge({ score, label }: { score: number; label: string }) {

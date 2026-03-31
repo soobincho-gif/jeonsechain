@@ -1,12 +1,18 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { decodeEventLog, isAddress, keccak256, parseEther, toBytes } from 'viem';
 import { CONTRACT_ADDRESSES, VAULT_ABI } from '@/lib/contracts';
 import { AddressRecord } from '@/lib/demo-data';
 import { digitsOnly, explorerLink, formatInputKRW } from '@/lib/format';
+import {
+  appendDraftNote,
+  buildTemporaryChecklistDraft,
+  buildTemporaryJeonseContractDraft,
+  buildTemporarySpecialTermsDraft,
+} from '@/lib/lease-draft';
 import { derivePropertyIdFromAddress, OracleRiskPreview } from '@/lib/property';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
@@ -28,8 +34,6 @@ type SubmissionSnapshot = {
   propertyId: `0x${string}`;
   landlord?: string;
 };
-
-const ZERO_BYTES32 = `0x${'0'.repeat(64)}` as const;
 
 export default function LandlordPanel({
   activeLease,
@@ -56,6 +60,7 @@ export default function LandlordPanel({
   const [lastLeaseId, setLastLeaseId] = useState(activeLease?.leaseId ?? '');
   const submittedRef = useRef<SubmissionSnapshot | null>(null);
   const handledReceiptRef = useRef<string | null>(null);
+  const lastSuggestedPropertyLabelRef = useRef<string | undefined>(suggestedPropertyLabel);
 
   useEffect(() => {
     if (!activeLease?.tenant) return;
@@ -68,10 +73,12 @@ export default function LandlordPanel({
   useEffect(() => {
     if (!suggestedPropertyLabel) return;
     setForm((current) => {
+      const previousSuggested = lastSuggestedPropertyLabelRef.current;
       if (
         current.propertyLabel &&
         current.propertyLabel !== '서울-마포구-APT-101' &&
-        current.propertyLabel !== activeLease?.propertyLabel
+        current.propertyLabel !== activeLease?.propertyLabel &&
+        current.propertyLabel !== previousSuggested
       ) {
         return current;
       }
@@ -81,6 +88,7 @@ export default function LandlordPanel({
         propertyLabel: suggestedPropertyLabel,
       };
     });
+    lastSuggestedPropertyLabelRef.current = suggestedPropertyLabel;
   }, [activeLease?.propertyLabel, suggestedPropertyLabel]);
 
   const normalizedDeposit = digitsOnly(form.depositKRW);
@@ -89,10 +97,6 @@ export default function LandlordPanel({
   const normalizedLeaseDocumentMemo = form.leaseDocumentMemo.trim();
   const normalizedSpecialTermsMemo = form.specialTermsMemo.trim();
   const normalizedChecklistMemo = form.checklistMemo.trim();
-  const hasDocumentInputs =
-    Boolean(normalizedLeaseDocumentMemo) ||
-    Boolean(normalizedSpecialTermsMemo) ||
-    Boolean(normalizedChecklistMemo);
   const propertyId = derivePropertyIdFromAddress(
     selectedAddress?.roadAddress || normalizedPropertyLabel || 'unknown-property',
   );
@@ -108,6 +112,41 @@ export default function LandlordPanel({
   const previewRiskScore = oracleRiskPreview?.score ?? selectedAddress?.riskScore ?? 0;
   const previewRiskLabel = oracleRiskPreview?.label ?? selectedAddress?.riskLabel ?? 'Monitor';
   const riskMeta = selectedAddress ? getRiskMeta(previewRiskScore, previewRiskLabel) : null;
+  const draftContext = useMemo(
+    () => ({
+      landlordAddress: address,
+      tenantAddress: form.tenant,
+      propertyLabel: normalizedPropertyLabel,
+      roadAddress: selectedAddress?.roadAddress,
+      detailAddress,
+      buildingName: selectedAddress?.building,
+      depositKRW: normalizedDeposit,
+      durationDays: normalizedDuration,
+    }),
+    [
+      address,
+      detailAddress,
+      form.tenant,
+      normalizedDeposit,
+      normalizedDuration,
+      normalizedPropertyLabel,
+      selectedAddress?.building,
+      selectedAddress?.roadAddress,
+    ],
+  );
+  const leaseContractDraft = useMemo(
+    () => appendDraftNote(buildTemporaryJeonseContractDraft(draftContext), normalizedLeaseDocumentMemo),
+    [draftContext, normalizedLeaseDocumentMemo],
+  );
+  const specialTermsDraft = useMemo(
+    () => appendDraftNote(buildTemporarySpecialTermsDraft(draftContext), normalizedSpecialTermsMemo),
+    [draftContext, normalizedSpecialTermsMemo],
+  );
+  const checklistDraft = useMemo(
+    () => appendDraftNote(buildTemporaryChecklistDraft(draftContext), normalizedChecklistMemo),
+    [draftContext, normalizedChecklistMemo],
+  );
+  const documentsAttached = canSubmit;
 
   useEffect(() => {
     if (!receipt || handledReceiptRef.current === receipt.transactionHash) return;
@@ -159,15 +198,9 @@ export default function LandlordPanel({
   function handleRegister() {
     if (!address || !canSubmit) return;
 
-    const leaseDocumentHash = hasDocumentInputs
-      ? (keccak256(toBytes(normalizedLeaseDocumentMemo || `${normalizedPropertyLabel}|${normalizedDeposit}|${normalizedDuration}`)) as `0x${string}`)
-      : undefined;
-    const specialTermsHash = normalizedSpecialTermsMemo
-      ? (keccak256(toBytes(normalizedSpecialTermsMemo)) as `0x${string}`)
-      : undefined;
-    const checklistHash = normalizedChecklistMemo
-      ? (keccak256(toBytes(normalizedChecklistMemo)) as `0x${string}`)
-      : undefined;
+    const leaseDocumentHash = keccak256(toBytes(leaseContractDraft)) as `0x${string}`;
+    const specialTermsHash = keccak256(toBytes(specialTermsDraft)) as `0x${string}`;
+    const checklistHash = keccak256(toBytes(checklistDraft)) as `0x${string}`;
 
     submittedRef.current = {
       tenant: form.tenant,
@@ -180,32 +213,23 @@ export default function LandlordPanel({
 
     onActivity({
       title: '계약 등록 요청을 보냈어요',
-      description: hasDocumentInputs
-        ? '문서 메모 해시와 함께 계약을 등록합니다. 승인 후 leaseId가 생성되면 다음 단계로 이어집니다.'
-        : '지갑 승인 후 leaseId가 생성되면 자동으로 다음 단계에 채워집니다.',
+      description: '임시 전세계약서 초안, 기본 특약, 입주 체크리스트 해시와 함께 계약을 등록합니다. 승인 후 leaseId가 생성되면 다음 단계로 이어집니다.',
       tone: 'info',
     });
 
     writeContract({
       address: CONTRACT_ADDRESSES.JeonseVault,
       abi: VAULT_ABI,
-      functionName: hasDocumentInputs ? 'registerLeaseWithDocuments' : 'registerLease',
-      args: hasDocumentInputs
-        ? [
-            form.tenant as `0x${string}`,
-            parseEther(normalizedDeposit),
-            BigInt(normalizedDuration),
-            propertyId,
-            leaseDocumentHash!,
-            specialTermsHash ?? ZERO_BYTES32,
-            checklistHash ?? ZERO_BYTES32,
-          ]
-        : [
-            form.tenant as `0x${string}`,
-            parseEther(normalizedDeposit),
-            BigInt(normalizedDuration),
-            propertyId,
-          ],
+      functionName: 'registerLeaseWithDocuments',
+      args: [
+        form.tenant as `0x${string}`,
+        parseEther(normalizedDeposit),
+        BigInt(normalizedDuration),
+        propertyId,
+        leaseDocumentHash,
+        specialTermsHash,
+        checklistHash,
+      ],
     });
   }
 
@@ -326,35 +350,68 @@ export default function LandlordPanel({
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <Field label="계약서 메모" helper="원문 대신 요약 메모를 해시로 저장합니다.">
+            <Field label="계약서 추가 메모" helper="아래 임시 전세계약서 초안 뒤에 덧붙일 메모입니다.">
               <textarea
                 value={form.leaseDocumentMemo}
                 onChange={(event) => setForm((current) => ({ ...current, leaseDocumentMemo: event.target.value }))}
-                placeholder="계약서 핵심 내용, 주소, 보증금, 기간 등"
+                placeholder="층·호수, 중개사 메모, 서명 방식 등 추가 기록"
                 rows={4}
                 className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
               />
             </Field>
 
-            <Field label="특약 메모" helper="특약이 있으면 별도 해시로 같이 남깁니다.">
+            <Field label="특약 추가 메모" helper="기본 특약 초안에 덧붙일 문구입니다.">
               <textarea
                 value={form.specialTermsMemo}
                 onChange={(event) => setForm((current) => ({ ...current, specialTermsMemo: event.target.value }))}
-                placeholder="수리 책임, 반환 조건, 추가 합의 등"
+                placeholder="수리 책임, 원상복구 범위, 반환 조건 등"
                 rows={4}
                 className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
               />
             </Field>
 
-            <Field label="입주 체크리스트 메모" helper="입주 상태나 사진 정리 메모를 해시로 보관합니다.">
+            <Field label="체크리스트 추가 메모" helper="기본 체크리스트 초안에 덧붙일 점검 메모입니다.">
               <textarea
                 value={form.checklistMemo}
                 onChange={(event) => setForm((current) => ({ ...current, checklistMemo: event.target.value }))}
-                placeholder="하자, 비품, 사진 묶음 설명 등"
+                placeholder="하자 위치, 사진 폴더, 비품 상태 등"
                 rows={4}
                 className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
               />
             </Field>
+          </div>
+
+          <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/45 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-white">임시 전세계약서 초안 미리보기</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  지금 입력한 내용으로 전세 계약서 초안, 기본 특약, 입주 체크리스트를 자동 생성합니다. 등록 시에는 아래 문안의
+                  해시가 함께 체인에 기록됩니다.
+                </p>
+              </div>
+              <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs text-amber-100">
+                서명본 전 임시 초안
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-4 xl:grid-cols-3">
+              <DocumentDraftBlock
+                title="전세계약서 초안"
+                description="전세보증금, 목적물, 기간, 반환 구조를 체인 규칙과 맞춰 정리한 기본 문안입니다."
+                content={leaseContractDraft}
+              />
+              <DocumentDraftBlock
+                title="기본 특약"
+                description="보증금 예치, 반환 절차, 증빙 보관 원칙을 담은 기본 특약입니다."
+                content={specialTermsDraft}
+              />
+              <DocumentDraftBlock
+                title="입주 체크리스트"
+                description="실제 입주 전에 확인해야 할 사진·비품·주소 일치 항목 초안입니다."
+                content={checklistDraft}
+              />
+            </div>
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -391,7 +448,7 @@ export default function LandlordPanel({
               <SummaryRow label="예상 보증금" value={formatInputKRW(normalizedDeposit)} />
               <SummaryRow label="계약 기간" value={`${normalizedDuration || '0'}일`} />
               <SummaryRow label="propertyId" value={propertyId.slice(0, 16) + '...'} />
-              <SummaryRow label="문서 해시 등록" value={hasDocumentInputs ? '포함됨' : '이번엔 생략'} />
+              <SummaryRow label="문서 해시 등록" value={documentsAttached ? '임시 계약서 포함' : '필수 입력 후 생성'} />
               <SummaryRow label="다음 단계" value="임차인 승인 및 납입" />
             </div>
           </div>
@@ -465,6 +522,26 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     <div className="flex flex-col items-start gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <span className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</span>
       <span className="min-w-0 break-all text-sm font-medium text-white [overflow-wrap:anywhere]">{value}</span>
+    </div>
+  );
+}
+
+function DocumentDraftBlock({
+  title,
+  description,
+  content,
+}: {
+  title: string;
+  description: string;
+  content: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-sm font-semibold text-white">{title}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-400">{description}</p>
+      <pre className="mt-4 max-h-[420px] overflow-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-xs leading-6 text-slate-200">
+        {content}
+      </pre>
     </div>
   );
 }
