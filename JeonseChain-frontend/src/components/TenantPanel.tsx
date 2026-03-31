@@ -203,7 +203,7 @@ export default function TenantPanel({
     actionRef.current = 'mint';
     onActivity({
       title: 'KRW 지급 요청 (테스트넷)',
-      description: 'MockKRW owner 권한으로 현재 지갑에 10억 KRW를 민팅합니다.',
+      description: 'MockKRW 관리자 권한으로 현재 지갑에 10억 KRW를 민팅합니다.',
       tone: 'info',
     });
     writeContract({
@@ -402,7 +402,7 @@ export default function TenantPanel({
               </button>
             ) : (
               <div className="rounded-full border border-white/10 px-4 py-3 text-xs text-slate-400">
-                MockKRW owner 지갑에서만 추가 민팅 가능: {mockOwner ? formatAddress(String(mockOwner)) : '조회 중'}
+                MockKRW 관리자 지갑에서만 추가 민팅 가능: {mockOwner ? formatAddress(String(mockOwner)) : '조회 중'}
               </div>
             )}
 

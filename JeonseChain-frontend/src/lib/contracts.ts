@@ -357,6 +357,23 @@ export const VAULT_ABI = [
     "stateMutability": "view",
     "type": "function"
   },
+  {
+    "inputs": [],
+    "name": "HUG_ROLE",
+    "outputs": [{ "name": "", "type": "bytes32" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "name": "role", "type": "bytes32" },
+      { "name": "account", "type": "address" }
+    ],
+    "name": "hasRole",
+    "outputs": [{ "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
   // events
   {
     "anonymous": false,

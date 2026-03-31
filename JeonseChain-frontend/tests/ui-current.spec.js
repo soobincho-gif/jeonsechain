@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3002';
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
 
 test.describe('JeonseChain current IA smoke', () => {
   test('landing, more menu, demo flow, and contract flow work together', async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe('JeonseChain current IA smoke', () => {
 
     await page.getByRole('button', { name: '데이터 근거' }).click();
     await expect(page.getByText('점수 산출 근거')).toBeVisible();
-    await expect(page.getByText('HUG 멀티시그')).toBeVisible();
+    await expect(page.getByText('HUG 멀티시그 거버넌스')).toBeVisible();
     await expect(page.getByText('LTV 미확인')).toBeVisible();
     await page.getByRole('button', { name: '최신 데이터 다시 보기' }).click();
 

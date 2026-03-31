@@ -28,8 +28,8 @@ export const ORACLE_FALLBACK_SNAPSHOT: OracleSnapshot = {
       saleSamples: 254,
     },
     risk: {
-      score: 40,
-      log: ['LTV 미확인 (선순위채권 데이터 없음) +40', '전세가율 34.7% (안전) +0'],
+      score: 0,
+      log: ['LTV 미확인 (선순위채권 데이터 없음, 위험 가점 없음) +0', '전세가율 34.7% (안전) +0'],
     },
     benchmark: {
       source: 'BOK_ECOS',
@@ -65,6 +65,7 @@ export const ORACLE_FALLBACK_SNAPSHOT: OracleSnapshot = {
       oracleAddress: '0x3993b53929cC0f6804fe8D68e0Eac73becE4a039',
       updatePropertyDataTx: '0xcc44124c5f33aba64331743512b837a183667a2af69d6441e3e0acd7e46b6d1e',
       updateRiskScoreTx: '0x893451ed78ec0971720752273405da7ee07a3966a123ce96e091fa1aa6cfec43',
+      updateRiskSignalsTx: '0x7949a3f12ba776a89f1f4534c6c2f948563e55dc90e11f15e2e5eba05df71f9d',
       updatedAt: '2026-03-31T01:46:15.277Z',
     },
     freshness: {
@@ -122,8 +123,8 @@ export const ORACLE_FALLBACK_SNAPSHOT: OracleSnapshot = {
   history: [
     {
       fetchedAt: '2026-03-31T01:45:41.567Z',
-      riskScore: 40,
-      label: '주의',
+      riskScore: 0,
+      label: '안전',
       eventTags: ['금리 반영'],
       baseRatePct: 2.5,
       treasury3yPct: 3.542,
@@ -150,8 +151,16 @@ export const ORACLE_FALLBACK_SNAPSHOT: OracleSnapshot = {
       saleSamples: 254,
     },
     risk: {
-      score: 40,
-      log: ['LTV 미확인 (선순위채권 데이터 없음) +40', '전세가율 34.7% (안전) +0'],
+      score: 0,
+      log: ['LTV 미확인 (선순위채권 데이터 없음, 위험 가점 없음) +0', '전세가율 34.7% (안전) +0'],
+    },
+    signals: {
+      seniorDebtRisk: false,
+      auctionRisk: false,
+      recentRightsChange: false,
+      depositToPriceRatioBps: 3469,
+      repaymentStress: false,
+      repaymentGapKRW: 0,
     },
     benchmark: {
       source: 'BOK_ECOS',

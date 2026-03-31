@@ -79,7 +79,7 @@ export default function MyContractSummary({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-            {detailMode ? 'Lease Snapshot / Rule View' : '내 계약 요약'}
+            {detailMode ? '계약 스냅샷 / 규칙 보기' : '내 계약 요약'}
           </p>
           <h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">{note}</p>
@@ -91,7 +91,7 @@ export default function MyContractSummary({
 
       <div className="mt-4 rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
         {detailMode
-          ? '상세 용어 모드에서는 Vault, Oracle Monitoring, Settlement Hold처럼 기술 용어를 함께 표시합니다.'
+          ? '상세 용어 모드에서는 Vault, Oracle Monitoring, Settlement Hold 같은 기술 용어를 함께 표시합니다.'
           : '쉬운 설명 모드에서는 보증금 보호함, 위험 신호 감지, 퇴실 정산처럼 사용자 중심 용어로 보여줍니다.'}
       </div>
 
@@ -233,7 +233,7 @@ export default function MyContractSummary({
                 <p className="mt-1 text-sm text-slate-400">고정 높이 패널 안에서 최신 이벤트만 빠르게 봅니다.</p>
               </div>
               <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
-                scroll
+                스크롤 가능
               </span>
             </div>
             <div className="mt-4 max-h-[320px] space-y-3 overflow-y-auto pr-1">

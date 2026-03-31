@@ -71,7 +71,7 @@ export default function SettlementPreview({
               </p>
             </div>
             <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100">
-              interactive demo
+              단계 체험
             </span>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -122,7 +122,7 @@ export default function SettlementPreview({
               <p className="mt-1 text-sm text-slate-400">미분쟁 금액은 즉시 반환, 분쟁 금액만 한시적으로 보류</p>
             </div>
             <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
-              {detailMode ? 'settlement hold cap 3% / 최대 300만 원' : '보류 상한 3% / 최대 300만 원'}
+              {detailMode ? '정산 보류 상한 3% / 최대 300만 원' : '보류 상한 3% / 최대 300만 원'}
             </span>
           </div>
 
@@ -193,10 +193,10 @@ export default function SettlementPreview({
           <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
             <p className="text-sm font-semibold text-white">정산 규칙</p>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <Rule label="자동 반환 원칙" value={detailMode ? '무분쟁 금액은 즉시 release' : '무분쟁 금액은 즉시 반환'} />
+              <Rule label="자동 반환 원칙" value={detailMode ? '무분쟁 금액은 즉시 반환(release)' : '무분쟁 금액은 즉시 반환'} />
               <Rule label="분쟁 제한" value="전체 보증금 동결 불가" />
-              <Rule label="제출 기한" value={detailMode ? '퇴실 후 72시간 내 settlement claim' : '퇴실 후 72시간 내 정산 요청'} />
-              <Rule label="증빙 필수" value={detailMode ? '사진/문서 hash 첨부' : '사진 또는 문서 첨부 필수'} />
+              <Rule label="제출 기한" value={detailMode ? '퇴실 후 72시간 내 정산 청구(settlement claim)' : '퇴실 후 72시간 내 정산 요청'} />
+              <Rule label="증빙 필수" value={detailMode ? '사진/문서 해시 첨부' : '사진 또는 문서 첨부 필수'} />
             </div>
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function SettlementPreview({
             <div className="mt-4 space-y-4">
               {[
                 '퇴실 신청 및 검수 기간 시작',
-                detailMode ? '임대인 settlement claim 제출 + 증빙 업로드' : '임대인 정산 요청 + 증빙 업로드',
+                detailMode ? '임대인 정산 청구(settlement claim) 제출 + 증빙 업로드' : '임대인 정산 요청 + 증빙 업로드',
                 '임차인 수락 / 일부 수락 / 이의 제기',
                 '무분쟁 금액 자동 반환',
                 '분쟁 금액만 외부 조정 결과로 최종 배분',

@@ -118,6 +118,20 @@ export default function HugMultisigPanel({
   const totalTxCount = Number(transactionCount ?? BigInt(0));
 
   const governanceTemplates = useMemo<GovernanceTemplate[]>(() => {
+    const pauseStateLoaded = typeof paused === 'boolean';
+    const pauseDisabled = !pauseStateLoaded || !isOwner || paused;
+    const unpauseDisabled = !pauseStateLoaded || !isOwner || !paused;
+    const pauseDisabledReason = !isOwner
+      ? '현재 연결 주소는 멀티시그 서명자가 아닙니다.'
+      : !pauseStateLoaded
+        ? '보호함의 현재 pause 상태를 읽는 중입니다.'
+        : '보호함이 이미 일시 정지 상태라 pause 안건을 다시 올릴 필요가 없습니다.';
+    const unpauseDisabledReason = !isOwner
+      ? '현재 연결 주소는 멀티시그 서명자가 아닙니다.'
+      : !pauseStateLoaded
+        ? '보호함의 현재 pause 상태를 읽는 중입니다.'
+        : '보호함이 이미 운영 중이라 unpause 안건을 올릴 필요가 없습니다.';
+
     const base = [
       {
         id: 'pause' as const,
@@ -125,8 +139,8 @@ export default function HugMultisigPanel({
         description: '새 계약 등록과 사용자 진입을 잠시 멈춰 더 큰 피해 확산을 막습니다.',
         helper: '위험 신호가 커질 때 운영자가 가장 먼저 거는 안전장치입니다.',
         toneClass: 'border-amber-400/20 bg-amber-400/10 text-amber-50',
-        disabled: !isOwner,
-        disabledReason: '현재 연결 주소는 멀티시그 owner가 아닙니다.',
+        disabled: pauseDisabled,
+        disabledReason: pauseDisabledReason,
         target: vaultAddress,
         data: encodeFunctionData({
           abi: VAULT_ABI,
@@ -140,8 +154,8 @@ export default function HugMultisigPanel({
         description: '점검이 끝난 뒤 등록, 입금, 정산 흐름을 다시 정상화합니다.',
         helper: 'pause 이후 상황을 점검하고 서비스 운영을 재개할 때 사용합니다.',
         toneClass: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-50',
-        disabled: !isOwner,
-        disabledReason: '현재 연결 주소는 멀티시그 owner가 아닙니다.',
+        disabled: unpauseDisabled,
+        disabledReason: unpauseDisabledReason,
         target: vaultAddress,
         data: encodeFunctionData({
           abi: VAULT_ABI,
@@ -159,8 +173,8 @@ export default function HugMultisigPanel({
         toneClass: 'border-rose-400/20 bg-rose-400/10 text-rose-50',
         disabled: !isOwner || !activeLeaseId,
         disabledReason: !activeLeaseId
-          ? 'viewer 단계에서 실제 leaseId를 선택해야 합니다.'
-          : '현재 연결 주소는 멀티시그 owner가 아닙니다.',
+          ? '계약 조회 화면에서 실제 leaseId를 선택해야 합니다.'
+          : '현재 연결 주소는 멀티시그 서명자가 아닙니다.',
         target: vaultAddress,
         data: encodeFunctionData({
           abi: VAULT_ABI,
@@ -174,7 +188,7 @@ export default function HugMultisigPanel({
     ];
 
     return base;
-  }, [activeLeaseId, isOwner, vaultAddress]);
+  }, [activeLeaseId, isOwner, paused, vaultAddress]);
 
   useEffect(() => {
     setRefreshNonce((current) => current + 1);
@@ -403,10 +417,10 @@ export default function HugMultisigPanel({
     <section className="glass-card overflow-hidden p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">HUG Multisig Governance</p>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">HUG 멀티시그 거버넌스</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">민감 권한을 단일 지갑이 아닌 멀티시그 뒤에 둡니다</h2>
           <p className="mt-3 text-sm leading-6 text-slate-300">
-            pause, unpause, emergency return 같은 민감 함수는 HUG 멀티시그를 통해 제안되고 집행됩니다.
+            일시 정지, 운영 재개, 강제 반환 같은 민감 함수는 HUG 멀티시그를 통해 제안되고 집행됩니다.
             발표에서는 아래 패널에서 실제로 안건을 생성하고 실행 흐름을 바로 보여줄 수 있습니다.
           </p>
         </div>

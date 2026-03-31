@@ -10,6 +10,9 @@ export const revalidate = 0;
 
 const DEFAULT_REMOTE_STATUS_URL =
   'https://raw.githubusercontent.com/soobincho-gif/jeonsechain/main/oracle-live/latest.json';
+const LEGACY_UNVERIFIED_DEBT_LOG = 'LTV 미확인 (선순위채권 데이터 없음) +40';
+const NORMALIZED_UNVERIFIED_DEBT_LOG =
+  'LTV 미확인 (선순위채권 데이터 없음, 위험 가점 없음) +0';
 
 function firstExistingPath(candidates: string[]) {
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
@@ -40,6 +43,74 @@ function getReportDirectory() {
   ]);
 }
 
+function hasLegacyMissingDebtPenalty(input: {
+  attestation?: { seniorDebtSource?: string } | null;
+  metrics?: {
+    seniorDebtKRW?: number;
+    auctionStarted?: boolean;
+    newMortgageSet?: boolean;
+  } | null;
+  risk?: { score?: number; log?: string[] } | null;
+}) {
+  return (
+    input.attestation?.seniorDebtSource === 'DEFAULT_ZERO' &&
+    input.metrics?.seniorDebtKRW === 0 &&
+    input.metrics?.auctionStarted === false &&
+    input.metrics?.newMortgageSet === false &&
+    input.risk?.score === 40 &&
+    Array.isArray(input.risk?.log) &&
+    input.risk.log.some((line) => line.includes('LTV 미확인 (선순위채권 데이터 없음)'))
+  );
+}
+
+function normalizeRiskLog(log: string[]) {
+  return log.map((line) =>
+    line === LEGACY_UNVERIFIED_DEBT_LOG ? NORMALIZED_UNVERIFIED_DEBT_LOG : line,
+  );
+}
+
+function normalizeReport(report: OracleReport | null) {
+  if (!report || !hasLegacyMissingDebtPenalty(report)) return report;
+
+  return {
+    ...report,
+    risk: {
+      ...report.risk,
+      score: 0,
+      log: normalizeRiskLog(report.risk.log),
+    },
+  } satisfies OracleReport;
+}
+
+function normalizeSnapshot(snapshot: OracleSnapshot | null) {
+  if (!snapshot || !hasLegacyMissingDebtPenalty(snapshot.latest)) return snapshot;
+
+  const latest = {
+    ...snapshot.latest,
+    risk: {
+      ...snapshot.latest.risk,
+      score: 0,
+      log: normalizeRiskLog(snapshot.latest.risk.log),
+    },
+  };
+
+  const history = snapshot.history.map((entry) =>
+    entry.fetchedAt === snapshot.latest.fetchedAt && entry.riskScore === 40
+      ? {
+          ...entry,
+          riskScore: 0,
+          label: riskLabelFromScore(0),
+        }
+      : entry,
+  );
+
+  return {
+    ...snapshot,
+    latest,
+    history,
+  } satisfies OracleSnapshot;
+}
+
 function loadRecentHistory(reportDir: string | null) {
   if (!reportDir) return [];
 
@@ -51,7 +122,7 @@ function loadRecentHistory(reportDir: string | null) {
       .slice(-7);
 
     return files
-      .map((file) => readJsonFile<OracleReport>(path.join(reportDir, file)))
+      .map((file) => normalizeReport(readJsonFile<OracleReport>(path.join(reportDir, file))))
       .filter((report): report is OracleReport => Boolean(report))
       .map((report) => ({
         fetchedAt: report.fetchedAt,
@@ -75,11 +146,11 @@ function loadRecentHistory(reportDir: string | null) {
 
 function loadRawReport(snapshot: OracleSnapshot, reportDir: string | null) {
   const explicitPath = snapshot.latest.reportPath;
-  const byExplicitPath = readJsonFile<OracleReport>(explicitPath);
+  const byExplicitPath = normalizeReport(readJsonFile<OracleReport>(explicitPath));
   if (byExplicitPath) return byExplicitPath;
 
   if (!reportDir || !snapshot.latest.reportFileName) return null;
-  return readJsonFile<OracleReport>(path.join(reportDir, snapshot.latest.reportFileName));
+  return normalizeReport(readJsonFile<OracleReport>(path.join(reportDir, snapshot.latest.reportFileName)));
 }
 
 async function fetchRemoteSnapshot() {
@@ -88,7 +159,7 @@ async function fetchRemoteSnapshot() {
   try {
     const response = await fetch(remoteUrl, { cache: 'no-store' });
     if (!response.ok) return null;
-    return (await response.json()) as OracleSnapshot;
+    return normalizeSnapshot((await response.json()) as OracleSnapshot);
   } catch {
     return null;
   }
@@ -97,7 +168,7 @@ async function fetchRemoteSnapshot() {
 async function buildResponsePayload() {
   const statusPath = getStatusFilePath();
   const reportDir = getReportDirectory();
-  const liveSnapshot = readJsonFile<OracleSnapshot>(statusPath);
+  const liveSnapshot = normalizeSnapshot(readJsonFile<OracleSnapshot>(statusPath));
   const preferRemoteFirst = Boolean(process.env.VERCEL);
 
   if (preferRemoteFirst) {

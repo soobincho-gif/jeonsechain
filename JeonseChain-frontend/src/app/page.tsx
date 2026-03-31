@@ -267,6 +267,17 @@ export default function Home() {
     },
   });
 
+  const { data: liveSettlementInfo, refetch: refetchLiveSettlementInfo } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseVault,
+    abi: VAULT_ABI,
+    functionName: 'getSettlementInfo',
+    args: activeLeaseReady ? [activeLeaseId as `0x${string}`] : undefined,
+    query: {
+      enabled: activeLeaseReady && !wrongNetwork,
+      refetchInterval: autoRefreshEnabled ? 5000 : false,
+    },
+  });
+
   const { data: selectedOracleProperty } = useReadContract({
     address: CONTRACT_ADDRESSES.JeonseOracle,
     abi: ORACLE_ABI,
@@ -405,7 +416,12 @@ export default function Home() {
 
   async function refreshLiveData() {
     if (!activeLeaseReady || wrongNetwork) return;
-    await Promise.all([refetchLiveInfo(), refetchLiveRemaining(), refetchLiveLeaseData()]);
+    await Promise.all([
+      refetchLiveInfo(),
+      refetchLiveRemaining(),
+      refetchLiveLeaseData(),
+      refetchLiveSettlementInfo(),
+    ]);
   }
 
   const walletState = deriveWalletState({
@@ -442,6 +458,7 @@ export default function Home() {
         activeLease,
         liveInfo,
         liveLeaseData,
+        liveSettlementInfo,
         liveRemaining,
         liveTrustRecord,
         liveOraclePreview,
@@ -460,6 +477,7 @@ export default function Home() {
     liveInfo,
     liveLeaseData,
     liveOraclePreview,
+    liveSettlementInfo,
     liveRemaining,
     liveTrustRecord,
     selectedOraclePreview,
@@ -1795,6 +1813,7 @@ function buildLiveSummary({
   activeLease,
   liveInfo,
   liveLeaseData,
+  liveSettlementInfo,
   liveRemaining,
   liveTrustRecord,
   liveOraclePreview,
@@ -1802,11 +1821,13 @@ function buildLiveSummary({
   activeLease: LeaseDraft | null;
   liveInfo: readonly [string, string, bigint, bigint, number];
   liveLeaseData: readonly [string, string, bigint, bigint, bigint, string, number, bigint, boolean];
+  liveSettlementInfo?: readonly [number, number, bigint, bigint, bigint, bigint, bigint, bigint, string, string, string];
   liveRemaining: bigint | undefined;
   liveTrustRecord: LiveTrustRecord;
   liveOraclePreview?: OracleRiskPreview | null;
 }): SummaryView {
   const stateNum = Number(liveInfo[4]);
+  const settlementStatusNum = liveSettlementInfo ? Number(liveSettlementInfo[0]) : 0;
   const contractStateLabel = CONTRACT_STATE[stateNum] || '상태 미확인';
   const deposit = liveInfo[2];
   const currentValue = liveInfo[3];
@@ -1848,7 +1869,7 @@ function buildLiveSummary({
     nextActionLabel: nextActionFromState(stateNum),
     situationTitle: situationTitleFromState(stateNum),
     situationDescription: situationDescriptionFromState(stateNum),
-    settlementStatus: stateNum === 4 ? '최종 정산 완료' : '정산 없음',
+    settlementStatus: settlementStatusForSummary(settlementStatusNum),
     scenario: 'live',
     trustBundle: buildLiveTrustBundle(
       liveTrustRecord,
@@ -1888,6 +1909,14 @@ function addressRiskLabelToKorean(riskLabel: AddressRecord['riskLabel']) {
   if (riskLabel === 'Safe') return '정상';
   if (riskLabel === 'Monitor') return '주의';
   return '위험';
+}
+
+function settlementStatusForSummary(settlementStatusNum: number): SettlementStatus {
+  if (settlementStatusNum === 4) return '최종 정산 완료';
+  if (settlementStatusNum === 3) return '조정 진행';
+  if (settlementStatusNum === 2) return '임차인 응답 대기';
+  if (settlementStatusNum === 1) return '정산 요청 접수';
+  return '정산 없음';
 }
 
 function riskLabelFromState(stateNum: number) {

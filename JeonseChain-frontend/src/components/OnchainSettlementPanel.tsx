@@ -2,12 +2,11 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { keccak256, parseEther, toBytes } from 'viem';
+import { formatEther, keccak256, parseEther, toBytes } from 'viem';
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import {
   CONTRACT_ADDRESSES,
   CONTRACT_STATE,
-  DEPLOYMENT_META,
   SETTLEMENT_STATUS,
   VAULT_ABI,
 } from '@/lib/contracts';
@@ -177,6 +176,26 @@ export default function OnchainSettlementPanel({
     },
   });
 
+  const { data: hugRole } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseVault,
+    abi: VAULT_ABI,
+    functionName: 'HUG_ROLE',
+    query: {
+      refetchInterval: 30000,
+    },
+  });
+
+  const { data: hasDirectHugRole } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseVault,
+    abi: VAULT_ABI,
+    functionName: 'hasRole',
+    args: address && hugRole ? [hugRole, address] : undefined,
+    query: {
+      enabled: Boolean(address && hugRole),
+      refetchInterval: 10000,
+    },
+  });
+
   const settlementStatusNum = settlement ? Number(settlement[0]) : 0;
   const claimDeadline = settlement?.[2];
   const responseDeadline = settlement?.[3];
@@ -184,19 +203,23 @@ export default function OnchainSettlementPanel({
   const heldAmount = settlement?.[5];
   const immediateReturnAmount = settlement?.[6];
   const finalLandlordAmount = settlement?.[7];
+  const holdCapKRW = useMemo(
+    () => (holdCap ? Math.round(Number(formatEther(holdCap))) : 3000000),
+    [holdCap],
+  );
 
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
   const connectedRole = useMemo(() => {
     if (!address) return '연결 안 됨';
     if (tenantAddress && address.toLowerCase() === tenantAddress.toLowerCase()) return '임차인';
     if (landlordAddress && address.toLowerCase() === landlordAddress.toLowerCase()) return '임대인';
-    if (address.toLowerCase() === DEPLOYMENT_META.deployer.toLowerCase()) return 'HUG 관리자';
+    if (hasDirectHugRole) return 'HUG 권한 지갑';
     return '조회 전용';
-  }, [address, landlordAddress, tenantAddress]);
+  }, [address, hasDirectHugRole, landlordAddress, tenantAddress]);
 
   const isTenant = connectedRole === '임차인';
   const isLandlord = connectedRole === '임대인';
-  const isHug = connectedRole === 'HUG 관리자';
+  const isHug = connectedRole === 'HUG 권한 지갑';
   const evidenceSignature = evidenceFiles
     .map((file) => `${file.name}:${file.size}:${file.lastModified}`)
     .join('|');
@@ -271,7 +294,7 @@ export default function OnchainSettlementPanel({
     const checklistCount = INSPECTION_CHECKLIST.filter((label) => inspectionChecks[label]).length;
     const checklistRatio = checklistCount / INSPECTION_CHECKLIST.length;
     const rawHold = issueEntries.reduce((sum, item) => sum + item.amount, 0);
-    const recommendedHold = Math.min(rawHold, Number(holdCap ?? BigInt(3000000)));
+    const recommendedHold = Math.min(rawHold, holdCapKRW);
     const readinessLow = fileCount < 3 || checklistRatio < 1;
 
     let status: 'full-return' | 'partial-hold' | 'manual-review' = 'full-return';
@@ -327,7 +350,7 @@ export default function OnchainSettlementPanel({
       fileCount,
       checklistCount,
     };
-  }, [evidenceFiles.length, holdCap, inspectionChecks, oracleIssues]);
+  }, [evidenceFiles.length, holdCapKRW, inspectionChecks, oracleIssues]);
 
   useEffect(() => {
     setUploadedEvidence(null);
@@ -377,7 +400,7 @@ export default function OnchainSettlementPanel({
     if (action === 'tenant-dispute') {
       onActivity({
         title: '임차인 이의 제기가 기록됐어요',
-        description: '이제 HUG 관리자 지갑에서 최종 배분을 확정할 수 있습니다.',
+        description: '이제 HUG 권한 지갑 또는 멀티시그 경로에서 최종 배분을 확정할 수 있습니다.',
         tone: 'warning',
         txHash: receipt.transactionHash,
         leaseId,
@@ -605,7 +628,7 @@ export default function OnchainSettlementPanel({
     actionRef.current = 'tenant-dispute';
     onActivity({
       title: '임차인 이의 제기를 전송했어요',
-      description: '이제 HUG 관리자 또는 조정기관 결과를 반영할 수 있습니다.',
+      description: '이제 HUG 권한 지갑 또는 조정기관 결과를 반영할 수 있습니다.',
       tone: 'info',
       leaseId,
     });
@@ -667,7 +690,7 @@ export default function OnchainSettlementPanel({
     setCategory(demoOracle.dominantCategory as (typeof CATEGORY_OPTIONS)[number]['value']);
     setClaimAmount(String(demoOracle.recommendedHold));
     setEvidenceMemo(
-      `자동 판정 데모 요약 · ${demoOracle.reasons.join(' / ')} · 추천 보류 ${formatKRW(BigInt(demoOracle.recommendedHold))}`,
+      `자동 판정 데모 요약 · ${demoOracle.reasons.join(' / ')} · 추천 보류 ${formatInputKRW(String(demoOracle.recommendedHold))}`,
     );
     setInspectionMode('verified-flow');
     onActivity({
@@ -881,7 +904,7 @@ export default function OnchainSettlementPanel({
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <MetricCard label="추천 보류 금액" value={formatKRW(BigInt(demoOracle.recommendedHold))} />
+                <MetricCard label="추천 보류 금액" value={formatInputKRW(String(demoOracle.recommendedHold))} />
                 <MetricCard label="판정 신뢰도" value={demoOracle.confidence} helper={`사진 ${demoOracle.fileCount}장 / 체크 ${demoOracle.checklistCount}개`} />
                 <MetricCard
                   label="다음 권장 액션"
@@ -1215,7 +1238,7 @@ export default function OnchainSettlementPanel({
         {settlementStatusNum === 3 && isHug ? (
           <ActionBlock
             title="5. HUG 최종 배분"
-            description="분쟁 상태에서는 HUG 관리자 지갑이 임대인 배분 금액을 확정합니다. 나머지는 자동으로 임차인에게 돌아갑니다."
+            description="분쟁 상태에서는 실제 Vault의 HUG_ROLE을 가진 지갑만 임대인 배분 금액을 확정할 수 있습니다. 나머지는 자동으로 임차인에게 돌아갑니다."
           >
             <label className="block">
               <span className="text-xs uppercase tracking-[0.18em] text-slate-500">임대인 배분 금액</span>
@@ -1244,6 +1267,17 @@ export default function OnchainSettlementPanel({
               </button>
             </div>
           </ActionBlock>
+        ) : null}
+
+        {settlementStatusNum === 3 && !isHug ? (
+          <div className="rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4">
+            <p className="text-sm font-semibold text-white">최종 배분은 HUG 권한 지갑에서만 직접 실행됩니다.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-200">
+              현재 연결 지갑은 Vault의 `HUG_ROLE` 보유 주소가 아니라 직접 확정 버튼이 열리지 않습니다.
+              HUG 권한이 멀티시그에 위임된 구성이라면, 멀티시그 패널에서 `resolveSettlementByHug`
+              제안과 승인을 진행해야 실제 체인 권한 구조와 프론트 동작이 일치합니다.
+            </p>
+          </div>
         ) : null}
       </div>
 

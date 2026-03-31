@@ -141,7 +141,7 @@ export default function LiveMonitor({
     <aside className="glass-card subtle-grid h-full overflow-hidden p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.28em] text-teal-200/70">Live Control Tower</p>
+          <p className="text-xs uppercase tracking-[0.28em] text-teal-200/70">실시간 관제</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">실시간 모니터</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">
             현재 선택한 계약과 최근 트랜잭션을 5초 간격으로 확인합니다.
@@ -195,7 +195,7 @@ export default function LiveMonitor({
             배포 시각: {new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(DEPLOYMENT_META.deployedAt))}
           </p>
           <p className="text-xs text-slate-500">
-            MockKRW owner: {mockOwner ? formatAddress(mockOwner) : '확인 중'}
+            MockKRW 관리자: {mockOwner ? formatAddress(mockOwner) : '확인 중'}
           </p>
         </div>
       </MonitorSection>

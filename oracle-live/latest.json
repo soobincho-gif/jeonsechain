@@ -30,9 +30,9 @@
       "saleSamples": 254
     },
     "risk": {
-      "score": 40,
+      "score": 0,
       "log": [
-        "LTV 미확인 (선순위채권 데이터 없음) +40",
+        "LTV 미확인 (선순위채권 데이터 없음, 위험 가점 없음) +0",
         "전세가율 34.7% (안전) +0"
       ]
     },
@@ -128,8 +128,8 @@
   "history": [
     {
       "fetchedAt": "2026-03-31T01:45:41.567Z",
-      "riskScore": 40,
-      "label": "주의",
+      "riskScore": 0,
+      "label": "안전",
       "eventTags": [
         "금리 반영"
       ],

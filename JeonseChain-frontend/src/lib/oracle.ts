@@ -30,6 +30,14 @@ export type OracleReport = {
     score: number;
     log: string[];
   };
+  signals?: {
+    seniorDebtRisk: boolean;
+    auctionRisk: boolean;
+    recentRightsChange: boolean;
+    depositToPriceRatioBps: number;
+    repaymentStress: boolean;
+    repaymentGapKRW: number;
+  };
   benchmark: {
     source: string;
     baseRate: OracleBenchmarkPoint | null;
@@ -81,6 +89,7 @@ export type OracleSnapshot = {
       oracleAddress: string | null;
       updatePropertyDataTx: string | null;
       updateRiskScoreTx: string | null;
+      updateRiskSignalsTx?: string | null;
       updatedAt: string | null;
     } | null;
     freshness: {
@@ -108,4 +117,3 @@ export function riskLabelFromScore(score: number) {
   if (score >= 40) return '주의';
   return '안전';
 }
-

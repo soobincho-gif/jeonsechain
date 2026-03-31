@@ -144,12 +144,28 @@ export default function LeaseViewer({
       settlementClaimDeadline > BigInt(0) &&
       nowSec > settlementClaimDeadline
     );
+  const canExecuteReturnState = stateNum === 1 || stateNum === 3;
   const canReturn =
-    stateNum !== -1 &&
-    stateNum !== 2 &&
+    canExecuteReturnState &&
     remainingDays !== undefined &&
     remainingDays <= BigInt(0) &&
     settlementAllowsReturn;
+  const returnStatusText = canReturn ? '실행 가능' : '대기 중';
+  const returnHelperText =
+    stateNum === -1 || remainingDays === undefined
+      ? '계약 상태와 만기 정보를 읽는 중입니다.'
+      : !canExecuteReturnState
+        ? `현재 상태(${CONTRACT_STATE[stateNum] || '미확인'})에서는 자동 반환을 실행할 수 없습니다.`
+        : remainingDays > BigInt(0)
+          ? '만기 전에는 자동 반환을 실행할 수 없습니다.'
+          : settlementStatusNum === 1 &&
+              settlementClaimDeadline !== undefined &&
+              settlementClaimDeadline > BigInt(0) &&
+              nowSec <= settlementClaimDeadline
+            ? '퇴실 정산 청구 마감 전이라 자동 반환이 잠시 잠겨 있습니다.'
+            : settlementStatusNum !== 0
+              ? '정산 절차가 진행 중이거나 이미 정리되어 자동 반환 대신 정산 결과를 확인해야 합니다.'
+              : '자동 반환 조건이 모두 충족되면 실행할 수 있습니다.';
 
   useEffect(() => {
     if (!receipt || handledReceiptRef.current === receipt.transactionHash) return;
@@ -345,9 +361,10 @@ export default function LeaseViewer({
                         : 'border-white/10 bg-white/[0.03] text-slate-300'
                     }`}
                   >
-                    {canReturn ? '실행 가능' : '대기 중'}
+                    {returnStatusText}
                   </span>
                 </div>
+                <p className="mt-3 text-sm text-slate-400">{returnHelperText}</p>
 
                 <div className="mt-4 flex flex-wrap gap-3">
                   <button
@@ -379,7 +396,7 @@ export default function LeaseViewer({
                     </p>
                   </div>
                   <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300">
-                    docs + trust events
+                    문서 + 신뢰 기록
                   </span>
                 </div>
 
@@ -483,7 +500,7 @@ export default function LeaseViewer({
             title="실시간 설명"
             lines={[
               '이 화면은 5초마다 상태와 남은 일수를 다시 읽습니다.',
-              '토큰 동결 여부와 margin call 플래그도 함께 확인합니다.',
+              '토큰 동결 여부와 마진콜 플래그도 함께 확인합니다.',
               '반환 실행 후에는 활동 로그와 우측 모니터가 동시에 갱신됩니다.',
             ]}
           />
