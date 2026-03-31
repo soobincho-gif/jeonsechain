@@ -509,6 +509,7 @@ export default function Home() {
   const unreadCount = activities.filter((item) => item.timestamp > lastSeenAt).length;
   const showQuickNav = scrollY > 280;
   const showScrollTop = scrollY > 540;
+  const navPinned = scrollY > 96;
   const contextualAction = getContextualAction(walletState, summaryView, {
     onOpenDemo: openDemoSelector,
     onSwitchNetwork: () => switchChain({ chainId: CHAIN_ID }),
@@ -597,7 +598,11 @@ export default function Home() {
         </div>
 
         <nav
-          className={`sticky top-3 z-30 mt-6 flex flex-wrap items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/80 px-4 py-3 shadow-[0_18px_60px_rgba(2,6,23,0.28)] backdrop-blur-xl transition duration-300 ${
+          className={`sticky top-0 z-30 mt-6 flex flex-wrap items-center gap-3 border border-white/10 bg-slate-950/80 px-4 py-3 backdrop-blur-xl transition duration-300 ${
+            navPinned
+              ? 'rounded-b-[26px] rounded-t-none border-t-0 shadow-[0_20px_60px_rgba(2,6,23,0.34)]'
+              : 'rounded-[26px] shadow-[0_18px_60px_rgba(2,6,23,0.28)]'
+          } ${
             showQuickNav ? 'md:pointer-events-none md:-translate-y-4 md:opacity-0' : ''
           }`}
         >
