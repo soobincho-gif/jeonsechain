@@ -453,18 +453,18 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 }
 
 function getRiskMeta(score: number, label: AddressRecord['riskLabel']) {
-  if (label === 'Safe' || score >= 75) {
+  if (label === 'Warning' || score >= 70) {
     return {
-      badgeLabel: '계약 진행 추천',
-      recommendation: '바로 진행 가능',
-      nextAction: '보증금·기간 입력 후 등록',
-      description: '최근 위험 점수가 안정권이라 등록 단계로 바로 넘어가도 설명이 자연스럽습니다.',
-      surfaceClass: 'border-emerald-400/20 bg-emerald-400/10',
-      badgeClass: 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100',
+      badgeLabel: '추가 검토 없이는 비추천',
+      recommendation: '등록 전 재검토',
+      nextAction: '다른 주소 비교 또는 보호 조건 강화',
+      description: '이 주소는 현재 위험 구간이라, 그대로 등록하기보다 위험 근거를 확인하거나 다른 후보를 비교해보는 흐름이 더 적절합니다.',
+      surfaceClass: 'border-rose-400/20 bg-rose-400/10',
+      badgeClass: 'border-rose-300/25 bg-rose-300/10 text-rose-100',
     };
   }
 
-  if (label === 'Monitor' || score >= 55) {
+  if (label === 'Monitor' || score >= 40) {
     return {
       badgeLabel: '조건 확인 후 진행',
       recommendation: '추가 확인 필요',
@@ -476,11 +476,11 @@ function getRiskMeta(score: number, label: AddressRecord['riskLabel']) {
   }
 
   return {
-    badgeLabel: '추가 검토 없이는 비추천',
-    recommendation: '등록 전 재검토',
-    nextAction: '다른 주소 비교 또는 보호 조건 강화',
-    description: '이 주소는 현재 위험 구간이라, 그대로 등록하기보다 위험 근거를 확인하거나 다른 후보를 비교해보는 흐름이 더 적절합니다.',
-    surfaceClass: 'border-rose-400/20 bg-rose-400/10',
-    badgeClass: 'border-rose-300/25 bg-rose-300/10 text-rose-100',
+    badgeLabel: '계약 진행 추천',
+    recommendation: '바로 진행 가능',
+    nextAction: '보증금·기간 입력 후 등록',
+    description: '최근 위험 점수가 안정권이라 등록 단계로 바로 넘어가도 설명이 자연스럽습니다.',
+    surfaceClass: 'border-emerald-400/20 bg-emerald-400/10',
+    badgeClass: 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100',
   };
 }

@@ -158,7 +158,7 @@ export default function MyContractSummary({
             <div className="space-y-5">
               <div className="grid gap-3 md:grid-cols-2">
                 <InfoCard label="현재 상태" value={statusLabel} helper="정상 / 주의 / 위험처럼 한눈에 읽히는 상태 표현" />
-                <InfoCard label="리스크 점수" value={`${riskScore} / 100`} helper="낮을수록 주의가 필요한 상태" />
+                <InfoCard label="리스크 점수" value={`${riskScore} / 100`} helper="높을수록 위험 신호가 많이 겹친 상태" />
               </div>
               <LifecycleTimeline
                 stage={stage}

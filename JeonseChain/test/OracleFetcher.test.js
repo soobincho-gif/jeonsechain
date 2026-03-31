@@ -54,8 +54,8 @@ describe("oracle-fetcher helpers", function () {
       saleSamples: 10,
     });
 
-    expect(score).to.equal(0);
-    expect(log[0]).to.equal("LTV 미확인 (선순위채권 데이터 없음)");
+    expect(score).to.equal(40);
+    expect(log[0]).to.equal("LTV 미확인 (선순위채권 데이터 없음) +40");
   });
 
   it("derives explainable structured risk signals from market data", async () => {

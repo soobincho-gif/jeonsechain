@@ -424,7 +424,8 @@ export function calculateRiskScore(data) {
 
   if (data.officialPriceKRW > 0) {
     if (data.seniorDebtVerified === false) {
-      log.push('LTV 미확인 (선순위채권 데이터 없음)');
+      score += 40;
+      log.push('LTV 미확인 (선순위채권 데이터 없음) +40');
     } else {
       const ltvPct = (data.seniorDebtKRW / data.officialPriceKRW) * 100;
       if (ltvPct >= 80) {

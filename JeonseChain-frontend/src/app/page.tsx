@@ -1380,7 +1380,7 @@ function buildSignalOverview(summaryView: SummaryView): { summary: string; items
   const nearingMaturity = summaryView.stage >= 4 || summaryView.remainingLabel === '만기 도래';
 
   const depositRatioTone: SignalOverviewTone =
-    score <= 45 ? 'warning' : score <= 70 ? 'monitor' : 'safe';
+    score >= 70 ? 'warning' : score >= 40 ? 'monitor' : 'safe';
   const seniorDebtTone: SignalOverviewTone = isWarning ? 'warning' : isMonitor ? 'monitor' : 'safe';
   const auctionTone: SignalOverviewTone =
     summaryView.scenario === 'risk' || summaryView.scenario === 'termination'
@@ -1492,7 +1492,7 @@ function buildRegisterSummary(addressItem: AddressRecord): SummaryView {
     maturityLabel: '계약 정보 입력 필요',
     statusLabel: '등록 전',
     riskScore: addressItem.riskScore,
-    tone: 'monitor',
+    tone: toneFromAddressRisk(addressItem.riskLabel),
     stage: 1,
     note: '아래 1단계에서 임대인·임차인·보증금·기간을 입력하면 실제 leaseId가 생성됩니다.',
     liveLabel: '실제 등록 준비',
@@ -1619,9 +1619,15 @@ function toneFromState(stateNum: number): SummaryTone {
 }
 
 function riskScoreFromState(stateNum: number) {
-  if (stateNum === 2 || stateNum === 5) return 41;
-  if (stateNum === 0 || stateNum === 3) return 67;
-  return 84;
+  if (stateNum === 2 || stateNum === 5) return 78;
+  if (stateNum === 0 || stateNum === 3) return 52;
+  return 24;
+}
+
+function toneFromAddressRisk(riskLabel: AddressRecord['riskLabel']): SummaryTone {
+  if (riskLabel === 'Safe') return 'safe';
+  if (riskLabel === 'Monitor') return 'monitor';
+  return 'warning';
 }
 
 function stageFromState(stateNum: number, remainingDays?: bigint) {

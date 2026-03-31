@@ -187,6 +187,7 @@ function buildMapEmbedUrl(record: AddressRecord | null) {
 }
 
 function RiskBadge({ score, label }: { score: number; label: string }) {
+  const displayLabel = label === 'Safe' ? '안전' : label === 'Monitor' ? '주의' : '위험';
   const tone =
     label === 'Safe'
       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
@@ -199,7 +200,7 @@ function RiskBadge({ score, label }: { score: number; label: string }) {
       className={`rounded-full border px-3 py-1 text-xs font-semibold ${tone}`}
       title={`리스크 스코어 ${score}/100`}
     >
-      {label} {score}
+      {displayLabel} {score}
     </span>
   );
 }
