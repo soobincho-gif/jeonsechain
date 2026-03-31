@@ -7,6 +7,7 @@ import { decodeEventLog, isAddress, keccak256, parseEther, toBytes } from 'viem'
 import { CONTRACT_ADDRESSES, VAULT_ABI } from '@/lib/contracts';
 import { AddressRecord } from '@/lib/demo-data';
 import { digitsOnly, explorerLink, formatInputKRW } from '@/lib/format';
+import { derivePropertyIdFromAddress, OracleRiskPreview } from '@/lib/property';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
 type LandlordPanelProps = {
@@ -14,6 +15,7 @@ type LandlordPanelProps = {
   suggestedPropertyLabel?: string;
   selectedAddress?: AddressRecord | null;
   detailAddress?: string;
+  oracleRiskPreview?: OracleRiskPreview | null;
   onLeaseCreated: (lease: LeaseDraft) => void;
   onActivity: (activity: Omit<ActivityItem, 'id' | 'timestamp'>) => void;
 };
@@ -34,6 +36,7 @@ export default function LandlordPanel({
   suggestedPropertyLabel,
   selectedAddress,
   detailAddress,
+  oracleRiskPreview,
   onLeaseCreated,
   onActivity,
 }: LandlordPanelProps) {
@@ -90,7 +93,9 @@ export default function LandlordPanel({
     Boolean(normalizedLeaseDocumentMemo) ||
     Boolean(normalizedSpecialTermsMemo) ||
     Boolean(normalizedChecklistMemo);
-  const propertyId = keccak256(toBytes(normalizedPropertyLabel || 'unknown-property')) as `0x${string}`;
+  const propertyId = derivePropertyIdFromAddress(
+    selectedAddress?.roadAddress || normalizedPropertyLabel || 'unknown-property',
+  );
   const tenantValid = isAddress(form.tenant);
   const walletReady = Boolean(address);
   const canSubmit =
@@ -100,7 +105,9 @@ export default function LandlordPanel({
     Boolean(normalizedDuration) &&
     Number(normalizedDuration) >= 365 &&
     Boolean(normalizedPropertyLabel);
-  const riskMeta = selectedAddress ? getRiskMeta(selectedAddress.riskScore, selectedAddress.riskLabel) : null;
+  const previewRiskScore = oracleRiskPreview?.score ?? selectedAddress?.riskScore ?? 0;
+  const previewRiskLabel = oracleRiskPreview?.label ?? selectedAddress?.riskLabel ?? 'Monitor';
+  const riskMeta = selectedAddress ? getRiskMeta(previewRiskScore, previewRiskLabel) : null;
 
   useEffect(() => {
     if (!receipt || handledReceiptRef.current === receipt.transactionHash) return;
@@ -257,9 +264,10 @@ export default function LandlordPanel({
 
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <SummaryRow label="우편번호" value={selectedAddress.postalCode} />
-                <SummaryRow label="현재 위험 점수" value={`${selectedAddress.riskScore}점`} />
+                <SummaryRow label="현재 위험 점수" value={`${previewRiskScore}점`} />
                 <SummaryRow label="추천 판단" value={riskMeta.recommendation} />
                 <SummaryRow label="권장 액션" value={riskMeta.nextAction} />
+                <SummaryRow label="근거 출처" value={oracleRiskPreview?.sourceLabel ?? '기본 샘플 주소 기준'} />
               </div>
 
               <p className="mt-4 text-sm leading-6 text-slate-200/90">{riskMeta.description}</p>
@@ -301,7 +309,7 @@ export default function LandlordPanel({
               </p>
             </Field>
 
-            <Field label="부동산 라벨" helper="라벨은 propertyId 해시로 변환됩니다.">
+            <Field label="부동산 라벨" helper="이 라벨은 화면 표시용이며, propertyId는 주소 기준으로 생성됩니다.">
               <input
                 value={form.propertyLabel}
                 onChange={(event) => setForm((current) => ({ ...current, propertyLabel: event.target.value }))}

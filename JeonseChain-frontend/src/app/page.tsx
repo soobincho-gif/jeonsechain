@@ -25,6 +25,7 @@ import {
   DEPLOYMENT_META,
   EXPLORER_BASE_URL,
   NETWORK_LABEL,
+  ORACLE_ABI,
   VAULT_ABI,
 } from '@/lib/contracts';
 import {
@@ -37,6 +38,13 @@ import {
 } from '@/lib/demo-data';
 import { formatAddress, formatKRW } from '@/lib/format';
 import { getTrustBundle, TrustBundle, TrustBundleKind } from '@/lib/trust';
+import {
+  buildOracleRiskPreview,
+  derivePropertyIdFromAddress,
+  OraclePropertyRead,
+  OracleRiskPreview,
+  OracleSignalRead,
+} from '@/lib/property';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
 type Tab = 'landlord' | 'tenant' | 'viewer';
@@ -205,6 +213,10 @@ export default function Home() {
   const activeLeaseId = activeLease?.leaseId;
   const activeLeaseReady = Boolean(activeLeaseId?.startsWith('0x') && activeLeaseId.length === 66);
   const wrongNetwork = isConnected && chainId !== CHAIN_ID;
+  const selectedPropertyId = useMemo(
+    () => (selectedAddress ? derivePropertyIdFromAddress(selectedAddress.roadAddress) : undefined),
+    [selectedAddress],
+  );
 
   const { data: liveInfo, refetch: refetchLiveInfo } = useReadContract({
     address: CONTRACT_ADDRESSES.JeonseVault,
@@ -238,6 +250,11 @@ export default function Home() {
       refetchInterval: autoRefreshEnabled ? 5000 : false,
     },
   });
+  const livePropertyId = useMemo<`0x${string}` | undefined>(() => {
+    const candidate = activeLease?.propertyId ?? (liveLeaseData?.[5] as `0x${string}` | undefined);
+    if (!candidate || !candidate.startsWith('0x') || candidate.length !== 66) return undefined;
+    return candidate as `0x${string}`;
+  }, [activeLease?.propertyId, liveLeaseData]);
 
   const { data: liveTrustRecord } = useReadContract({
     address: CONTRACT_ADDRESSES.JeonseVault,
@@ -247,6 +264,50 @@ export default function Home() {
     query: {
       enabled: activeLeaseReady && !wrongNetwork,
       refetchInterval: autoRefreshEnabled ? 10000 : false,
+    },
+  });
+
+  const { data: selectedOracleProperty } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseOracle,
+    abi: ORACLE_ABI,
+    functionName: 'properties',
+    args: selectedPropertyId ? [selectedPropertyId] : undefined,
+    query: {
+      enabled: Boolean(selectedPropertyId),
+      refetchInterval: autoRefreshEnabled ? 15000 : false,
+    },
+  });
+
+  const { data: selectedOracleSignals } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseOracle,
+    abi: ORACLE_ABI,
+    functionName: 'getRiskSignalSummary',
+    args: selectedPropertyId ? [selectedPropertyId] : undefined,
+    query: {
+      enabled: Boolean(selectedPropertyId),
+      refetchInterval: autoRefreshEnabled ? 15000 : false,
+    },
+  });
+
+  const { data: liveOracleProperty } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseOracle,
+    abi: ORACLE_ABI,
+    functionName: 'properties',
+    args: livePropertyId ? [livePropertyId] : undefined,
+    query: {
+      enabled: Boolean(livePropertyId),
+      refetchInterval: autoRefreshEnabled ? 15000 : false,
+    },
+  });
+
+  const { data: liveOracleSignals } = useReadContract({
+    address: CONTRACT_ADDRESSES.JeonseOracle,
+    abi: ORACLE_ABI,
+    functionName: 'getRiskSignalSummary',
+    args: livePropertyId ? [livePropertyId] : undefined,
+    query: {
+      enabled: Boolean(livePropertyId),
+      refetchInterval: autoRefreshEnabled ? 15000 : false,
     },
   });
 
@@ -358,6 +419,22 @@ export default function Home() {
   const selectedDemoAddress =
     selectedAddress ?? ADDRESS_BOOK.find((item) => item.id === selectedDemo.addressId) ?? ADDRESS_BOOK[0];
   const contractRoleMeta = ROLE_META[contractRoleView];
+  const selectedOraclePreview = useMemo(
+    () =>
+      buildOracleRiskPreview(
+        selectedOracleProperty as OraclePropertyRead,
+        selectedOracleSignals as OracleSignalRead,
+      ),
+    [selectedOracleProperty, selectedOracleSignals],
+  );
+  const liveOraclePreview = useMemo(
+    () =>
+      buildOracleRiskPreview(
+        liveOracleProperty as OraclePropertyRead,
+        liveOracleSignals as OracleSignalRead,
+      ),
+    [liveOracleProperty, liveOracleSignals],
+  );
 
   const summaryView = useMemo<SummaryView>(() => {
     if (liveInfo && liveLeaseData && !demoMode) {
@@ -367,11 +444,12 @@ export default function Home() {
         liveLeaseData,
         liveRemaining,
         liveTrustRecord,
+        liveOraclePreview,
       });
     }
 
     if (!demoMode) {
-      return buildRegisterSummary(selectedAddress ?? selectedDemoAddress, detailAddress);
+      return buildRegisterSummary(selectedAddress ?? selectedDemoAddress, detailAddress, selectedOraclePreview);
     }
 
     return buildDemoSummary(selectedDemo, selectedDemoAddress, settlementDemoStatus);
@@ -381,8 +459,10 @@ export default function Home() {
     demoMode,
     liveInfo,
     liveLeaseData,
+    liveOraclePreview,
     liveRemaining,
     liveTrustRecord,
+    selectedOraclePreview,
     selectedDemo,
     selectedDemoAddress,
     settlementDemoStatus,
@@ -675,7 +755,7 @@ export default function Home() {
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
                   샘플 계약으로 서비스 흐름을 설명하는 체험 모드와, 주소 검색부터 계약 등록까지 이어지는
-                  내 계약 관리 모드를 분리했습니다. 교수님 시연과 실제 기능 시연이 한 화면에서 섞여 보이지 않도록
+                  내 계약 관리 모드를 분리했습니다. 설명용 흐름과 실제 계약 관리 흐름이 한 화면에서 섞여 보이지 않도록
                   입구부터 나눠둔 구조입니다.
                 </p>
 
@@ -925,6 +1005,7 @@ export default function Home() {
                   <AddressSearchPanel
                     selectedAddress={selectedAddress}
                     detailAddress={detailAddress}
+                    selectedRiskOverride={selectedOraclePreview}
                     onSelect={(record) => {
                       setSelectedAddress(record);
                     }}
@@ -992,6 +1073,7 @@ export default function Home() {
                                 }
                                 selectedAddress={selectedAddress}
                                 detailAddress={detailAddress}
+                                oracleRiskPreview={selectedOraclePreview}
                                 onLeaseCreated={(lease) => mergeLease(lease, 'tenant')}
                                 onActivity={pushActivity}
                               />
@@ -1632,7 +1714,16 @@ function buildPropertyLabel(addressItem: AddressRecord, detailAddress?: string) 
     .join(' | ');
 }
 
-function buildRegisterSummary(addressItem: AddressRecord, detailAddress?: string): SummaryView {
+function buildRegisterSummary(
+  addressItem: AddressRecord,
+  detailAddress?: string,
+  oraclePreview?: OracleRiskPreview | null,
+): SummaryView {
+  const fallbackLabel = addressRiskLabelToKorean(addressItem.riskLabel);
+  const riskLabel = oraclePreview ? addressRiskLabelToKorean(oraclePreview.label) : fallbackLabel;
+  const riskScore = oraclePreview?.score ?? addressItem.riskScore;
+  const tone = oraclePreview ? toneFromAddressRisk(oraclePreview.label) : toneFromAddressRisk(addressItem.riskLabel);
+
   return {
     title: '새 전세 계약 등록 준비',
     addressLine: buildAddressLine(addressItem, detailAddress),
@@ -1641,16 +1732,20 @@ function buildRegisterSummary(addressItem: AddressRecord, detailAddress?: string
     protectionPercent: 0,
     remainingLabel: '-',
     maturityLabel: '계약 정보 입력 필요',
-    statusLabel: '등록 전',
-    riskScore: addressItem.riskScore,
-    tone: toneFromAddressRisk(addressItem.riskLabel),
+    statusLabel: riskLabel,
+    riskScore,
+    tone,
     stage: 1,
-    note: '아래 1단계에서 임대인·임차인·보증금·기간을 입력하면 실제 leaseId가 생성됩니다.',
+    note: oraclePreview
+      ? '선택한 주소의 온체인 오라클 신호를 우선 반영했습니다. 아래 1단계에서 계약을 등록하면 같은 propertyId로 이어집니다.'
+      : '아직 온체인 오라클 반영 전이라 샘플 주소 기준 위험도를 보여줍니다. 아래 1단계에서 계약을 등록하면 실제 leaseId가 생성됩니다.',
     liveLabel: '실제 등록 준비',
     depositKRW: '0',
     nextActionLabel: '임대인 패널 입력 시작',
     situationTitle: '선택한 주소를 기준으로 실제 등록 준비 상태예요.',
-    situationDescription: '데모가 아니라 실제 등록 흐름으로 전환된 상태입니다. 아래 워크스페이스에서 계약 정보를 입력하면 됩니다.',
+    situationDescription: oraclePreview
+      ? '이 주소는 현재 온체인 오라클 기준으로 사전 점검이 가능한 상태입니다. 아래 워크스페이스에서 계약 정보를 입력하면 같은 부동산 기준으로 등록됩니다.'
+      : '데모가 아니라 실제 등록 흐름으로 전환된 상태입니다. 아직 이 주소의 온체인 오라클 반영값이 없으면 샘플 기준 위험도를 함께 보여줍니다.',
     settlementStatus: '정산 없음',
     scenario: 'live',
     trustBundle: getTrustBundle('register'),
@@ -1702,21 +1797,27 @@ function buildLiveSummary({
   liveLeaseData,
   liveRemaining,
   liveTrustRecord,
+  liveOraclePreview,
 }: {
   activeLease: LeaseDraft | null;
   liveInfo: readonly [string, string, bigint, bigint, number];
   liveLeaseData: readonly [string, string, bigint, bigint, bigint, string, number, bigint, boolean];
   liveRemaining: bigint | undefined;
   liveTrustRecord: LiveTrustRecord;
+  liveOraclePreview?: OracleRiskPreview | null;
 }): SummaryView {
   const stateNum = Number(liveInfo[4]);
-  const tone = toneFromState(stateNum);
+  const contractStateLabel = CONTRACT_STATE[stateNum] || '상태 미확인';
   const deposit = liveInfo[2];
   const currentValue = liveInfo[3];
   const depositNumber = Number(deposit);
   const currentValueNumber = Number(currentValue);
   const protectionPercent =
     depositNumber > 0 ? Math.min(100, (currentValueNumber / depositNumber) * 100) : 0;
+  const fallbackRiskLabel = riskLabelFromState(stateNum);
+  const statusLabel = liveOraclePreview ? addressRiskLabelToKorean(liveOraclePreview.label) : fallbackRiskLabel;
+  const riskScore = liveOraclePreview?.score ?? riskScoreFromState(stateNum);
+  const tone = liveOraclePreview ? toneFromAddressRisk(liveOraclePreview.label) : toneFromState(stateNum);
 
   return {
     title: '내 전세 계약 요약',
@@ -1735,12 +1836,14 @@ function buildLiveSummary({
       month: '2-digit',
       day: '2-digit',
     }).format(new Date(Number(liveLeaseData[4]) * 1000)),
-    statusLabel: CONTRACT_STATE[stateNum] || '상태 미확인',
-    riskScore: riskScoreFromState(stateNum),
+    statusLabel,
+    riskScore,
     tone,
     stage: stageFromState(stateNum, liveRemaining),
-    note: currentValueNumber > 0 ? '실시간 계약 데이터를 기반으로 현재 보호 상태를 표시합니다.' : '등록은 됐지만 아직 보증금이 예치되지 않은 상태입니다.',
-    liveLabel: '실시간 온체인 계약',
+    note: currentValueNumber > 0
+      ? `${contractStateLabel} · ${liveOraclePreview ? '오라클 점수와 신호를 함께 반영한 상태입니다.' : '계약 상태는 실시간이지만, 오라클 점수는 아직 반영 전일 수 있습니다.'}`
+      : `${contractStateLabel} · 등록은 됐지만 아직 보증금이 예치되지 않은 상태입니다.`,
+    liveLabel: `실시간 온체인 계약 · ${contractStateLabel}`,
     depositKRW: activeLease?.depositKRW || String(Math.round(depositNumber / 1e18)),
     nextActionLabel: nextActionFromState(stateNum),
     situationTitle: situationTitleFromState(stateNum),
@@ -1779,6 +1882,18 @@ function toneFromAddressRisk(riskLabel: AddressRecord['riskLabel']): SummaryTone
   if (riskLabel === 'Safe') return 'safe';
   if (riskLabel === 'Monitor') return 'monitor';
   return 'warning';
+}
+
+function addressRiskLabelToKorean(riskLabel: AddressRecord['riskLabel']) {
+  if (riskLabel === 'Safe') return '정상';
+  if (riskLabel === 'Monitor') return '주의';
+  return '위험';
+}
+
+function riskLabelFromState(stateNum: number) {
+  if (stateNum === 2 || stateNum === 5) return '위험';
+  if (stateNum === 0 || stateNum === 3) return '주의';
+  return '정상';
 }
 
 function stageFromState(stateNum: number, remainingDays?: bigint) {

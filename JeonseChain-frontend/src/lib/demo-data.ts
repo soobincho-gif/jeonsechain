@@ -97,7 +97,7 @@ export const ADDRESS_BOOK: AddressRecord[] = [
   {
     id: 'mapo-dmc',
     postalCode: '03925',
-    roadAddress: '서울 마포구 월드컵북로 402',
+    roadAddress: '서울특별시 마포구 월드컵북로 396',
     building: '상암 누리꿈스퀘어 레지던스',
     district: '마포구',
     lat: 37.5798,

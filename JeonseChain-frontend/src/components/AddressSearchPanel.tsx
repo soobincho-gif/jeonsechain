@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ADDRESS_BOOK, AddressRecord } from '@/lib/demo-data';
+import { OracleRiskPreview } from '@/lib/property';
 
 type AddressSearchPanelProps = {
   selectedAddress: AddressRecord | null;
   detailAddress: string;
+  selectedRiskOverride?: OracleRiskPreview | null;
   onSelect: (record: AddressRecord) => void;
   onDetailAddressChange: (value: string) => void;
 };
@@ -13,6 +15,7 @@ type AddressSearchPanelProps = {
 export default function AddressSearchPanel({
   selectedAddress,
   detailAddress,
+  selectedRiskOverride,
   onSelect,
   onDetailAddressChange,
 }: AddressSearchPanelProps) {
@@ -34,6 +37,14 @@ export default function AddressSearchPanel({
       ),
     );
   }, [query]);
+
+  const selectedRisk = selectedAddress
+    ? {
+        score: selectedRiskOverride?.score ?? selectedAddress.riskScore,
+        label: selectedRiskOverride?.label ?? selectedAddress.riskLabel,
+        sourceLabel: selectedRiskOverride?.sourceLabel ?? '기본 샘플 주소 기준',
+      }
+    : null;
 
   return (
     <section className="glass-card overflow-hidden p-5 sm:p-6">
@@ -78,6 +89,10 @@ export default function AddressSearchPanel({
           <div className="mt-4 grid gap-3">
             {results.map((item) => {
               const selected = selectedAddress?.id === item.id;
+              const displayRisk =
+                selected && selectedRisk
+                  ? { score: selectedRisk.score, label: selectedRisk.label }
+                  : { score: item.riskScore, label: item.riskLabel };
               return (
                 <button
                   key={item.id}
@@ -96,7 +111,7 @@ export default function AddressSearchPanel({
                       <p className="text-sm font-semibold text-white">{item.roadAddress}</p>
                       <p className="mt-1 text-sm text-slate-400">{item.building}</p>
                     </div>
-                    <RiskBadge score={item.riskScore} label={item.riskLabel} />
+                    <RiskBadge score={displayRisk.score} label={displayRisk.label} />
                   </div>
                   <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
                     <span>우편번호 {item.postalCode}</span>
@@ -143,7 +158,7 @@ export default function AddressSearchPanel({
               </p>
             </div>
             {selectedAddress ? (
-              <RiskBadge score={selectedAddress.riskScore} label={selectedAddress.riskLabel} />
+              <RiskBadge score={selectedRisk?.score ?? selectedAddress.riskScore} label={selectedRisk?.label ?? selectedAddress.riskLabel} />
             ) : null}
           </div>
 
@@ -189,6 +204,9 @@ export default function AddressSearchPanel({
             <p className="mt-2 text-sm leading-6 text-slate-300">
               선택한 주소와 상세주소는 아래 워크스페이스 1단계에 자동으로 불러와져 계약 등록 입력을 빠르게 시작할 수 있습니다.
             </p>
+            {selectedRisk ? (
+              <p className="mt-2 text-xs text-slate-400">현재 표시된 위험 점수 출처: {selectedRisk.sourceLabel}</p>
+            ) : null}
             {selectedAddress ? (
               <a
                 href={`https://www.openstreetmap.org/?mlat=${selectedAddress.lat}&mlon=${selectedAddress.lng}#map=17/${selectedAddress.lat}/${selectedAddress.lng}`}
