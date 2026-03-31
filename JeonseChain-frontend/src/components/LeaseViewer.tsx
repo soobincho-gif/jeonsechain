@@ -235,14 +235,15 @@ export default function LeaseViewer({
         <div className="rounded-[26px] border border-white/10 bg-slate-950/35 p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-teal-200/80">Live Lease Monitor</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-teal-200/80">계약 조회</p>
               <h3 className="mt-2 text-2xl font-semibold text-white">내 계약 상세 조회</h3>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                현재 선택한 leaseId를 기준으로 상태, 리스크 플래그, 만기일까지 남은 시간, 자동 반환 가능 여부를 5초마다 갱신합니다.
+                계약 ID를 입력하면 현재 상태, 리스크 플래그, 만기까지 남은 시간, 자동 반환 가능 여부를 확인할 수 있습니다.
               </p>
             </div>
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300">
-              live refresh 5s
+            <span className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse" />
+              실시간 갱신
             </span>
           </div>
 
@@ -250,7 +251,7 @@ export default function LeaseViewer({
             <input
               value={leaseId}
               onChange={(event) => setLeaseId(event.target.value)}
-              placeholder="leaseId (0x...)"
+              placeholder="계약 ID (0x...)"
               className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-teal-300/40"
             />
             <button

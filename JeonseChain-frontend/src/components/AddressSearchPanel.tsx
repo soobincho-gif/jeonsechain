@@ -155,7 +155,7 @@ export default function AddressSearchPanel({
           <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
             <p className="text-sm font-medium text-white">계약 등록으로 이어집니다</p>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              선택한 주소는 아래 워크스페이스 Step 1에 자동으로 불러와져 계약 등록 입력을 빠르게 시작할 수 있습니다.
+              선택한 주소는 아래 워크스페이스 1단계에 자동으로 불러와져 계약 등록 입력을 빠르게 시작할 수 있습니다.
             </p>
             {selectedAddress ? (
               <a

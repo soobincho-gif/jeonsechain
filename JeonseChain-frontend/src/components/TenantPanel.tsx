@@ -109,7 +109,7 @@ export default function TenantPanel({
 
     if (action === 'mint') {
       onActivity({
-        title: '테스트 KRW 지급 완료',
+        title: 'KRW 지급 완료 (테스트넷)',
         description: '현재 연결 지갑으로 10억 KRW를 민팅했습니다.',
         tone: 'success',
         txHash: receipt.transactionHash,
@@ -195,7 +195,7 @@ export default function TenantPanel({
     if (!address) return;
     actionRef.current = 'mint';
     onActivity({
-      title: '테스트 KRW 지급 요청',
+      title: 'KRW 지급 요청 (테스트넷)',
       description: 'MockKRW owner 권한으로 현재 지갑에 10억 KRW를 민팅합니다.',
       tone: 'info',
     });
@@ -332,7 +332,7 @@ export default function TenantPanel({
                 disabled={isPending || isConfirming}
                 className="rounded-full border border-white/10 px-4 py-3 text-sm text-slate-100 transition hover:border-teal-300/30 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                테스트 KRW 10억 지급
+                KRW 10억 지급 (테스트넷)
               </button>
             ) : (
               <div className="rounded-full border border-white/10 px-4 py-3 text-xs text-slate-400">
@@ -390,7 +390,7 @@ export default function TenantPanel({
             title="권장 순서"
             lines={[
               '1. leaseId를 확인하고 현재 지갑이 임차인 주소와 일치하는지 봅니다.',
-              '2. 필요하면 테스트 KRW를 준비하고 Vault 사용 승인을 진행합니다.',
+              '2. 필요하면 KRW (테스트넷)를 준비하고 Vault 사용 승인을 진행합니다.',
               '3. 승인 완료 후 보증금 입금을 실행하면 모니터링 단계로 넘어갑니다.',
             ]}
           />
