@@ -208,7 +208,7 @@ async function fetchMolitXml(endpoint, beopjeongCode, month, apiKey) {
     signal: AbortSignal.timeout(12000),
     headers: {
       Accept: 'application/xml,text/xml;q=0.9,*/*;q=0.8',
-      'User-Agent': 'JeonseChainOracle/1.0 (+https://jeonsechain-frontend.vercel.app)',
+      'User-Agent': 'JeonseChainOracle/1.0 (+https://jeonsechain.vercel.app)',
     },
   });
   if (!response.ok) {
@@ -280,7 +280,7 @@ async function fetchEcosSeries({
     signal: AbortSignal.timeout(12000),
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'JeonseChainOracle/1.0 (+https://jeonsechain-frontend.vercel.app)',
+      'User-Agent': 'JeonseChainOracle/1.0 (+https://jeonsechain.vercel.app)',
     },
   });
   if (!response.ok) {
