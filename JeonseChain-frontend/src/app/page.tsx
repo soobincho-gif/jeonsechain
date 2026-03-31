@@ -799,7 +799,7 @@ export default function Home() {
                     {...summaryView}
                     detailMode={detailMode}
                     activities={activities}
-                    availableTabs={['contract', 'settlement']}
+                    availableTabs={['contract', 'risk', 'trust', 'settlement']}
                   />
                 </section>
 

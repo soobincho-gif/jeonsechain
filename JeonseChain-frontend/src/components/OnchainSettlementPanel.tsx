@@ -212,18 +212,46 @@ export default function OnchainSettlementPanel({
     responseDeadline !== undefined &&
     responseDeadline > BigInt(0) &&
     nowSec > responseDeadline;
-  const inspectionReady = INSPECTION_CHECKLIST.every((label) => inspectionChecks[label]);
+  const selectedEvidenceCount = uploadedEvidence?.files.length ?? evidenceFiles.length;
+  const inspectionMemoHash = useMemo(() => hashText(evidenceMemo || '퇴실 점검 기본 메모'), [evidenceMemo]);
+  const verifiedInspectionItems = useMemo(
+    () => [
+      {
+        label: '현장 사진 또는 문서 준비',
+        helper:
+          selectedEvidenceCount > 0
+            ? `증빙 ${selectedEvidenceCount}건이 준비되어 있어요.`
+            : '정산 요청 전에는 최소 1개 이상 증빙 파일이 필요합니다.',
+        ready: selectedEvidenceCount > 0,
+      },
+      {
+        label: '퇴실 점검 메모 작성',
+        helper: inspectionMemoHash
+          ? '점검 메모가 해시로 정리될 준비가 됐어요.'
+          : '청소·파손·공과금 관련 메모를 먼저 남겨주세요.',
+        ready: Boolean(inspectionMemoHash),
+      },
+      {
+        label: '증빙 해시 번들 생성',
+        helper: uploadedEvidence?.bundleHash
+          ? '업로드 또는 브라우저 해시 번들이 생성됐어요.'
+          : '증빙 업로드 또는 해시 생성 버튼을 눌러야 다음 단계가 열립니다.',
+        ready: Boolean(uploadedEvidence?.bundleHash),
+      },
+    ],
+    [inspectionMemoHash, selectedEvidenceCount, uploadedEvidence?.bundleHash],
+  );
+  const inspectionReady = verifiedInspectionItems.every((item) => item.ready);
   const inspectionChecklistHash = useMemo(() => {
     const payload = JSON.stringify({
-      checks: INSPECTION_CHECKLIST.map((label) => ({
-        label,
-        checked: inspectionChecks[label],
+      checks: verifiedInspectionItems.map((item) => ({
+        label: item.label,
+        checked: item.ready,
       })),
-      photoCount: evidenceFiles.length,
+      photoCount: selectedEvidenceCount,
     });
     return hashText(payload);
-  }, [evidenceFiles.length, inspectionChecks]);
-  const inspectionMemoHash = useMemo(() => hashText(evidenceMemo || '퇴실 점검 기본 메모'), [evidenceMemo]);
+  }, [selectedEvidenceCount, verifiedInspectionItems]);
   const latestDocumentHash = leaseDocuments?.[0];
   const latestDocumentRecordedAt = leaseDocuments?.[3];
   const inspectionAnchoredOnchain =
@@ -735,27 +763,82 @@ export default function OnchainSettlementPanel({
           title="퇴실 점검 흐름"
           description="일반 사용자 입장에서는 이 화면 안에서 퇴실 점검 체크, 사진·문서 업로드, 정산 요청, 응답, 최종 배분까지 이어집니다. 실사용형은 증빙 업로드와 해시 기록 중심이고, 자동 판정은 별도 데모 레이어로 제공됩니다."
         >
-          <div className="grid gap-3 md:grid-cols-3">
-            {INSPECTION_CHECKLIST.map((label) => (
-              <label
-                key={label}
-                className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-200"
+          {inspectionMode === 'verified-flow' ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {verifiedInspectionItems.map((item) => (
+                <div
+                  key={item.label}
+                  className={`rounded-[22px] border p-4 ${
+                    item.ready
+                      ? 'border-emerald-400/20 bg-emerald-400/10'
+                      : 'border-white/10 bg-slate-950/40'
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-white">{item.label}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{item.helper}</p>
+                  <span
+                    className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                      item.ready
+                        ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100'
+                        : 'border-white/10 bg-white/[0.03] text-slate-300'
+                    }`}
+                  >
+                    {item.ready ? '완료' : '대기'}
+                  </span>
+                </div>
+              ))}
+              <div
+                className={`rounded-[22px] border p-4 ${
+                  inspectionAnchoredOnchain
+                    ? 'border-cyan-300/20 bg-cyan-300/10'
+                    : 'border-white/10 bg-slate-950/40'
+                }`}
               >
-                <input
-                  type="checkbox"
-                  checked={inspectionChecks[label]}
-                  onChange={() =>
-                    setInspectionChecks((current) => ({
-                      ...current,
-                      [label]: !current[label],
-                    }))
-                  }
-                  className="h-4 w-4 rounded border-white/20 bg-slate-900"
-                />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
+                <p className="text-sm font-semibold text-white">온체인 점검 기록</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  {inspectionAnchoredOnchain
+                    ? '증빙 해시와 점검 요약이 이미 체인에 기록돼 정산 근거로 바로 이어집니다.'
+                    : '증빙과 메모가 준비되면 해시를 체인에 남겨 실제 정산 청구와 연결합니다.'}
+                </p>
+                <span
+                  className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                    inspectionAnchoredOnchain
+                      ? 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100'
+                      : 'border-white/10 bg-white/[0.03] text-slate-300'
+                  }`}
+                >
+                  {inspectionAnchoredOnchain ? '체인 기록 완료' : '체인 기록 전'}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-300">
+                아래 체크는 발표용 자동 판정 데모 조절값입니다. 실사용형 검증에서는 이 항목을 사용자가 직접 누르지 않고, 업로드와 해시 기록 상태를 자동으로 보여줍니다.
+              </p>
+              <div className="grid gap-3 md:grid-cols-3">
+                {INSPECTION_CHECKLIST.map((label) => (
+                  <label
+                    key={label}
+                    className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-200"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={inspectionChecks[label]}
+                      onChange={() =>
+                        setInspectionChecks((current) => ({
+                          ...current,
+                          [label]: !current[label],
+                        }))
+                      }
+                      className="h-4 w-4 rounded border-white/20 bg-slate-900"
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </ActionBlock>
 
         {inspectionMode === 'oracle-demo' ? (
@@ -1032,7 +1115,7 @@ export default function OnchainSettlementPanel({
                 <MetricCard
                   label="체크리스트 상태"
                   value={inspectionReady ? '모두 완료' : '추가 확인 필요'}
-                  helper={`사진 ${evidenceFiles.length}장 · 체크 ${INSPECTION_CHECKLIST.filter((label) => inspectionChecks[label]).length}/${INSPECTION_CHECKLIST.length}`}
+                  helper={`증빙 ${selectedEvidenceCount}건 · 자동 점검 ${verifiedInspectionItems.filter((item) => item.ready).length}/${verifiedInspectionItems.length}`}
                 />
               </div>
               <div className="mt-4 flex flex-wrap gap-3">

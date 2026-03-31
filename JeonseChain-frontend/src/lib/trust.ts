@@ -48,6 +48,7 @@ export type TrustProfile = {
 };
 
 export type TrustBundle = {
+  kind?: TrustBundleKind;
   title: string;
   subtitle: string;
   note: string;
@@ -445,8 +446,8 @@ export function getTrustBundle(
   },
 ) {
   const bundle = cloneBundle(TRUST_TEMPLATES[kind]);
+  bundle.kind = kind;
   if (overrides?.landlordName) bundle.landlord.displayName = overrides.landlordName;
   if (overrides?.tenantName) bundle.tenant.displayName = overrides.tenantName;
   return bundle;
 }
-
