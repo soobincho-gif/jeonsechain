@@ -2,10 +2,14 @@
   "name": "jeonsechain-frontend",
   "version": "0.1.0",
   "private": true,
+  "description": "Next.js frontend for JeonseChain",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test:ui": "playwright test",
+    "clean": "rm -rf .next test-results playwright-report"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.1.6",

@@ -30,7 +30,9 @@ import {
 } from '@/lib/contracts';
 import {
   ADDRESS_BOOK,
+  DEMO_AUDIENCE_LABEL,
   AddressRecord,
+  DemoAudience,
   DEMO_LEASES,
   DemoLeaseRecord,
   SETTLEMENT_STAGE_META,
@@ -51,6 +53,7 @@ type Tab = 'landlord' | 'tenant' | 'viewer';
 type Surface = 'landing' | 'experience' | 'contract' | 'more';
 type MoreView = 'signals' | 'trust' | 'activity' | 'data' | 'faq';
 type ContractRoleView = 'landlord' | 'tenant' | 'viewer';
+type ExperienceAudience = DemoAudience | 'all';
 type WalletViewState =
   | 'wallet-not-connected'
   | 'wallet-connecting'
@@ -112,6 +115,41 @@ const ROLE_META: Record<
   },
 };
 
+const EXPERIENCE_AUDIENCE_META: Record<
+  ExperienceAudience,
+  {
+    label: string;
+    headline: string;
+    description: string;
+    defaultDemoId: string;
+  }
+> = {
+  all: {
+    label: '전체 시나리오',
+    headline: '서비스 전체 흐름을 폭넓게 훑어보는 데모 모음',
+    description: '정상 보호, 위험 감지, 정산, 계약 변경까지 전체 그림을 훑어보며 구조를 이해하는 모드입니다.',
+    defaultDemoId: 'safe-contract',
+  },
+  browser: {
+    label: '둘러보는 사람',
+    headline: '서비스 구조를 먼저 이해하고 싶은 사람용 데모',
+    description: '계약을 실제로 진행하기 전, 보호 구조와 위험 감지, 정산 원칙이 어떤 식으로 보이는지 빠르게 이해하는 데 초점을 둡니다.',
+    defaultDemoId: 'safe-contract',
+  },
+  landlord: {
+    label: '임대인',
+    headline: '등록, 리스크 점검, 정산 요청 관점에서 보는 데모',
+    description: '주소를 고른 뒤 어떤 리스크를 먼저 확인해야 하는지, 계약 변경과 정산 요청이 어떤 흐름으로 이어지는지 중심으로 보여줍니다.',
+    defaultDemoId: 'risk-contract',
+  },
+  tenant: {
+    label: '임차인',
+    headline: 'leaseId 확인, 예치, 정산 응답 관점에서 보는 데모',
+    description: '임차인이 실제로 이해해야 하는 계약 확인, 보증금 예치, 퇴실 정산 응답 흐름을 중심으로 보여줍니다.',
+    defaultDemoId: 'settlement-contract',
+  },
+};
+
 const TAB_META: Record<
   Tab,
   { label: string; eyebrow: string; title: string; description: string }
@@ -120,19 +158,19 @@ const TAB_META: Record<
     label: '새 전세계약 등록',
     eyebrow: '1단계',
     title: '주소와 계약 조건을 등록해 leaseId를 생성',
-    description: '주소 검색에서 고른 부동산을 바탕으로 임차인 주소, 보증금, 기간을 입력하고 온체인 계약을 엽니다.',
+    description: '주소 검색에서 고른 부동산을 바탕으로 임차인 주소, 보증금, 기간을 입력하고 온체인 계약을 엽니다. 지갑 연결 전에도 입력 구조는 먼저 볼 수 있습니다.',
   },
   tenant: {
     label: '보증금 예치',
     eyebrow: '2단계',
     title: '임차인이 계약 내용을 확인하고 보증금을 예치',
-    description: '임대인이 생성한 leaseId를 자동으로 이어받아 계약 확인, 승인, 예치를 순서대로 진행합니다.',
+    description: '임대인이 생성한 leaseId를 자동으로 이어받아 계약 확인, 승인, 예치를 순서대로 진행합니다. leaseId 조회는 지갑 없이도 먼저 볼 수 있습니다.',
   },
   viewer: {
     label: '내 계약 모니터링',
     eyebrow: '3단계',
     title: '위험 감지와 자동 반환 상태를 실시간 확인',
-    description: '만기까지 남은 일수, 리스크 플래그, 반환 가능 여부를 5초 간격으로 갱신합니다.',
+    description: '만기까지 남은 일수, 리스크 플래그, 반환 가능 여부를 5초 간격으로 갱신합니다. 조회 화면은 leaseId만 있으면 먼저 읽어볼 수 있습니다.',
   },
 };
 
@@ -198,6 +236,7 @@ export default function Home() {
   const [selectedAddress, setSelectedAddress] = useState<AddressRecord | null>(ADDRESS_BOOK[0]);
   const [detailAddress, setDetailAddress] = useState('');
   const [selectedDemoId, setSelectedDemoId] = useState(DEMO_LEASES[0].id);
+  const [experienceAudience, setExperienceAudience] = useState<ExperienceAudience>('all');
   const [settlementDemoStatus, setSettlementDemoStatus] = useState<SettlementStatus>(
     DEMO_LEASES.find((item) => item.id === 'settlement-contract')?.settlementStatus ?? '임차인 응답 대기',
   );
@@ -333,6 +372,7 @@ export default function Home() {
           detailAddress?: string;
           demoMode?: boolean;
           selectedDemoId?: string;
+          experienceAudience?: ExperienceAudience;
           autoRefreshEnabled?: boolean;
           settlementDemoStatus?: SettlementStatus;
           registrationIntent?: boolean;
@@ -352,6 +392,15 @@ export default function Home() {
 
         if (parsed.selectedDemoId && DEMO_LEASES.some((item) => item.id === parsed.selectedDemoId)) {
           setSelectedDemoId(parsed.selectedDemoId);
+        }
+        if (
+          parsed.experienceAudience &&
+          (parsed.experienceAudience === 'all' ||
+            parsed.experienceAudience === 'browser' ||
+            parsed.experienceAudience === 'landlord' ||
+            parsed.experienceAudience === 'tenant')
+        ) {
+          setExperienceAudience(parsed.experienceAudience);
         }
         if (parsed.settlementDemoStatus && SETTLEMENT_STAGE_META[parsed.settlementDemoStatus]) {
           setSettlementDemoStatus(parsed.settlementDemoStatus);
@@ -381,6 +430,7 @@ export default function Home() {
         detailAddress,
         demoMode,
         selectedDemoId,
+        experienceAudience,
         autoRefreshEnabled,
         settlementDemoStatus,
         registrationIntent,
@@ -394,6 +444,7 @@ export default function Home() {
     contractRoleView,
     detailAddress,
     demoMode,
+    experienceAudience,
     hydrated,
     selectedAddress,
     selectedDemoId,
@@ -514,30 +565,47 @@ export default function Home() {
     }
   }
 
-  function selectDemoLease(demoId: string) {
+  function activateDemo(
+    demoId: string,
+    options?: { announce?: boolean; audience?: ExperienceAudience },
+  ) {
     const demo = DEMO_LEASES.find((item) => item.id === demoId);
     if (!demo) return;
 
     setSurface('experience');
     setDemoMode(true);
     setRegistrationIntent(false);
+    if (options?.audience) setExperienceAudience(options.audience);
     setSelectedDemoId(demoId);
     setSettlementDemoStatus(demo.scenario === 'settlement' ? demo.settlementStatus : '정산 없음');
     setTab('viewer');
     setContractRoleView('viewer');
     const addressItem = ADDRESS_BOOK.find((item) => item.id === demo.addressId);
     if (addressItem) setSelectedAddress(addressItem);
-    pushActivity({
-      title: '계약 정보를 불러왔어요',
-      description: '지갑 연결 없이도 전세 lifecycle과 퇴실 정산 흐름을 미리 볼 수 있습니다.',
-      tone: 'info',
-    });
+    if (options?.announce !== false) {
+      pushActivity({
+        title: '계약 정보를 불러왔어요',
+        description: '지갑 연결 없이도 전세 lifecycle과 퇴실 정산 흐름을 미리 볼 수 있습니다.',
+        tone: 'info',
+      });
+    }
+  }
+
+  function selectDemoLease(demoId: string) {
+    activateDemo(demoId, { announce: true });
+  }
+
+  function openExperienceForAudience(audience: DemoAudience) {
+    const defaultDemoId = EXPERIENCE_AUDIENCE_META[audience].defaultDemoId;
+    activateDemo(defaultDemoId, { announce: false, audience });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function openDemoSelector() {
     setSurface('experience');
     setDemoMode(true);
     setRegistrationIntent(false);
+    setExperienceAudience('all');
     scrollToSection(guidedDemoRef, 'demo');
   }
 
@@ -608,12 +676,11 @@ export default function Home() {
   const showQuickNav = scrollY > 280;
   const showScrollTop = scrollY > 540;
   const navPinned = scrollY > 96;
-  const contextualAction = getContextualAction(walletState, summaryView, {
-    onOpenDemo: openDemoSelector,
-    onSwitchNetwork: () => switchChain({ chainId: CHAIN_ID }),
+  const experienceAudienceMeta = EXPERIENCE_AUDIENCE_META[experienceAudience];
+  const demoConnectionAction = getDemoConnectionAction(selectedDemo, {
     onOpenViewer: () => openWorkspaceTab('viewer'),
-    onOpenSettlement: () => openSettlementDemo(settlementDemoStatus),
-    onOpenRegister: () => openWorkspaceTab('landlord'),
+    onOpenLandlord: () => openWorkspaceTab('landlord'),
+    onOpenTenant: () => openWorkspaceTab('tenant'),
   });
   const signalOverview = useMemo(() => buildSignalOverview(summaryView), [summaryView]);
 
@@ -767,34 +834,54 @@ export default function Home() {
               <div className="glass-card subtle-grid overflow-hidden p-5 sm:p-7">
                 <p className="text-xs uppercase tracking-[0.24em] text-slate-400">JeonseChain 시작하기</p>
                 <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
-                  처음 보는 사람도
+                  임대인, 임차인,
                   <br className="hidden sm:block" />
-                  5초 안에 이해할 수 있게 시작점을 나눴습니다
+                  그냥 둘러보는 사람마다 시작점을 다시 나눴습니다
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
-                  샘플 계약으로 서비스 흐름을 설명하는 체험 모드와, 주소 검색부터 계약 등록까지 이어지는
-                  내 계약 관리 모드를 분리했습니다. 설명용 흐름과 실제 계약 관리 흐름이 한 화면에서 섞여 보이지 않도록
-                  입구부터 나눠둔 구조입니다.
+                  누가 들어왔는지에 따라 바로 눌러야 할 버튼이 다르기 때문에, 이제는 둘러보기와 실제 계약 진행을 역할별로 더 분명하게
+                  갈라두었습니다. 데모는 설명용으로, 임대인/임차인 화면은 실제 진행용으로 읽히도록 구조를 다시 묶었습니다.
                 </p>
 
-                <div className="mt-6 grid gap-4 lg:grid-cols-2">
-                  <EntryChoiceCard
-                    eyebrow="체험하기"
-                    title="샘플 계약으로 서비스 흐름 보기"
-                    description="정상 계약, 위험 계약, 퇴실 정산 시나리오를 고르며 JeonseChain의 보호 구조를 빠르게 이해합니다."
-                    primaryLabel="데모 시작"
-                    secondaryLabel="시나리오 보기"
-                    onPrimary={openExperience}
+                <div className="mt-6 grid gap-4 xl:grid-cols-3">
+                  <PersonaEntryCard
+                    eyebrow="둘러보기"
+                    title="그냥 둘러보는 사람"
+                    description="서비스가 실제로 무엇을 보호하고, 위험과 정산을 어떻게 설명하는지 먼저 이해하고 싶은 사람에게 맞는 시작점입니다."
+                    points={[
+                      '정상 계약, 위험 계약, 퇴실 정산 데모를 먼저 확인',
+                      '데모가 왜 유효한지와 어떤 기능을 보여주는지 같이 설명',
+                    ]}
+                    primaryLabel="핵심 데모 보기"
+                    secondaryLabel="전체 시나리오 보기"
+                    onPrimary={() => openExperienceForAudience('browser')}
                     onSecondary={openDemoSelector}
                   />
-                  <EntryChoiceCard
-                    eyebrow="내 계약 시작하기"
-                    title="주소 검색과 계약 등록부터 바로 시작"
-                    description="선택한 주소의 위험 상태를 먼저 보고, 보증금·기간·지갑 연결까지 실제 계약 관리 흐름으로 이어집니다."
-                    primaryLabel="내 계약 보기"
-                    secondaryLabel="주소 검색 열기"
-                    onPrimary={openContractHome}
-                    onSecondary={openContractHome}
+                  <PersonaEntryCard
+                    eyebrow="실제 진행"
+                    title="임대인"
+                    description="주소를 고르고 계약을 등록한 뒤 leaseId를 만들어 임차인 단계로 넘겨야 하는 사람을 위한 시작점입니다."
+                    points={[
+                      '주소 검색과 오라클 사전 점검부터 바로 시작',
+                      '계약 등록, 문서 해시 첨부, 정산 요청 흐름으로 연결',
+                    ]}
+                    primaryLabel="임대인 화면 열기"
+                    secondaryLabel="임대인 관련 데모"
+                    onPrimary={() => openWorkspaceTab('landlord')}
+                    onSecondary={() => openExperienceForAudience('landlord')}
+                  />
+                  <PersonaEntryCard
+                    eyebrow="실제 진행"
+                    title="임차인"
+                    description="이미 받은 leaseId를 확인하고, 승인과 보증금 예치, 퇴실 정산 응답까지 따라가야 하는 사람을 위한 시작점입니다."
+                    points={[
+                      'leaseId 조회는 지갑 없이도 먼저 확인 가능',
+                      '승인, 예치, 정산 응답 흐름을 임차인 기준으로 설명',
+                    ]}
+                    primaryLabel="임차인 화면 열기"
+                    secondaryLabel="임차인 관련 데모"
+                    onPrimary={() => openWorkspaceTab('tenant')}
+                    onSecondary={() => openExperienceForAudience('tenant')}
                   />
                 </div>
 
@@ -854,16 +941,52 @@ export default function Home() {
                   <div className="glass-card subtle-grid overflow-hidden p-5 sm:p-7">
                     <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-center">
                       <div className="max-w-3xl">
-                        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">체험하기</p>
+                        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">역할별 데모</p>
                         <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
-                          샘플 계약으로
+                          {experienceAudienceMeta.label} 기준으로
                           <br className="hidden sm:block" />
-                          보호, 위험 감지, 퇴실 정산 흐름을 보여줍니다
+                          먼저 이해해야 할 데모를 묶어 보여줍니다
                         </h1>
                         <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
-                          발표와 데모에 맞게 정상 계약, 위험 계약, 퇴실 정산 계약을 선택하면 아래 스토리와 요약 카드가
-                          함께 바뀝니다. 실사용 데이터와 섞이지 않도록 이 탭은 설명용 샘플 계약만 보여줍니다.
+                          {experienceAudienceMeta.description} 현재 선택한 데모는 설명용 샘플 계약만 사용하며,
+                          왜 이 흐름이 유효한지와 실제 어느 화면으로 이어지는지를 함께 안내합니다.
                         </p>
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          {(['all', 'browser', 'landlord', 'tenant'] as const).map((audience) => {
+                            const active = experienceAudience === audience;
+                            const label = audience === 'all' ? '전체' : DEMO_AUDIENCE_LABEL[audience];
+                            return (
+                              <button
+                                key={audience}
+                                type="button"
+                                onClick={() => {
+                                  if (audience === 'all') {
+                                    setExperienceAudience('all');
+                                    if (selectedDemoId !== EXPERIENCE_AUDIENCE_META.all.defaultDemoId) {
+                                      activateDemo(EXPERIENCE_AUDIENCE_META.all.defaultDemoId, {
+                                        announce: false,
+                                        audience: 'all',
+                                      });
+                                    } else {
+                                      setSurface('experience');
+                                      setDemoMode(true);
+                                      setRegistrationIntent(false);
+                                    }
+                                  } else {
+                                    openExperienceForAudience(audience);
+                                  }
+                                }}
+                                className={`rounded-full border px-3 py-2 text-xs transition ${
+                                  active
+                                    ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                                    : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.05]'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <HeroProtectionScene tone={summaryView.tone} statusLabel={summaryView.statusLabel} />
@@ -871,19 +994,16 @@ export default function Home() {
 
                     <div className="mt-6 flex flex-wrap items-center gap-3">
                       <button
-                        onClick={contextualAction.onClick}
+                        onClick={demoConnectionAction.onClick}
                         className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
                       >
-                        {contextualAction.label}
-                      </button>
-                      <button
-                        onClick={openContractHome}
-                        className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
-                      >
-                        내 계약으로 이동
+                        {demoConnectionAction.label}
                       </button>
                       <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-400">
-                        샘플 계약 {selectedDemo.storyTitle}
+                        현재 데모 {selectedDemo.storyTitle}
+                      </span>
+                      <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-xs text-cyan-100">
+                        추천 대상 {selectedDemo.audiences.map((audience) => DEMO_AUDIENCE_LABEL[audience]).join(' · ')}
                       </span>
                     </div>
 
@@ -898,12 +1018,20 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <MyContractSummary
-                    {...summaryView}
-                    detailMode={detailMode}
-                    activities={activities}
-                    availableTabs={['contract', 'risk', 'trust', 'settlement']}
-                  />
+                  <div className="space-y-6">
+                    <MyContractSummary
+                      {...summaryView}
+                      detailMode={detailMode}
+                      activities={activities}
+                      availableTabs={['contract', 'risk', 'trust', 'settlement']}
+                    />
+                    <DemoGuidePanel
+                      demo={selectedDemo}
+                      onOpenLandlord={() => openWorkspaceTab('landlord')}
+                      onOpenTenant={() => openWorkspaceTab('tenant')}
+                      onOpenViewer={() => openWorkspaceTab('viewer')}
+                    />
+                  </div>
                 </section>
 
                 <div
@@ -914,12 +1042,21 @@ export default function Home() {
                     demos={DEMO_LEASES}
                     selectedId={selectedDemoId}
                     scenario={selectedDemo.scenario}
+                    audienceFilter={experienceAudience}
                     currentStage={summaryView.stage}
                     situation={summaryView.situationTitle}
                     storyTitle={selectedDemo.storyTitle}
                     storyDescription={selectedDemo.storyDescription}
                     nextActionLabel={summaryView.nextActionLabel}
                     detailMode={detailMode}
+                    onAudienceFilterChange={(audience) => {
+                      setExperienceAudience(audience);
+                      if (audience === 'all') return;
+                      const nextDemo = DEMO_LEASES.find((item) => item.audiences.includes(audience));
+                      if (nextDemo && nextDemo.id !== selectedDemoId) {
+                        activateDemo(nextDemo.id, { announce: false, audience });
+                      }
+                    }}
                     onSelect={selectDemoLease}
                   />
                 </div>
@@ -962,13 +1099,7 @@ export default function Home() {
                         onClick={() => openWorkspaceTab('landlord')}
                         className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
                       >
-                        새 전세계약 등록
-                      </button>
-                      <button
-                        onClick={openExperience}
-                        className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
-                      >
-                        데모 먼저 보기
+                        지금 할 일 선택하기
                       </button>
                       <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-400">
                         연결 상태 {WALLET_STATE_LABEL[walletState]}
@@ -978,26 +1109,58 @@ export default function Home() {
                       </span>
                     </div>
 
-                    <div className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
-                      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">역할 전환</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(Object.keys(ROLE_META) as ContractRoleView[]).map((key) => (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => openWorkspaceTab(key)}
-                            className={`rounded-full px-4 py-2 text-sm transition ${
-                              contractRoleView === key
-                                ? 'bg-cyan-300 text-slate-950'
-                                : 'border border-white/10 bg-white/[0.03] text-slate-200 hover:border-cyan-300/30 hover:bg-white/[0.05]'
-                            }`}
-                          >
-                            {ROLE_META[key].label}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="mt-3 text-sm font-semibold text-white">{contractRoleMeta.headline}</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-300">{contractRoleMeta.description}</p>
+                    <div className="mt-6 grid gap-4 xl:grid-cols-3">
+                      <RoleJourneyCard
+                        roleLabel={ROLE_META.landlord.label}
+                        eyebrow="임대인"
+                        title="주소 검색 → 계약 등록 → leaseId 생성"
+                        description="임대인은 주소 위험도를 먼저 보고, 계약 조건과 문서 해시를 등록한 뒤 임차인 단계로 넘깁니다."
+                        points={[
+                          '주소 검색과 오라클 사전 점검',
+                          '계약 등록과 문서 해시 첨부',
+                          activeLease?.leaseId ? `현재 leaseId ${formatAddress(activeLease.leaseId, 8, 6)}` : '아직 leaseId 생성 전',
+                        ]}
+                        statusLabel={activeLease?.leaseId ? '등록 흐름 이어서 보기' : '처음 시작하기'}
+                        primaryLabel="임대인 화면 열기"
+                        secondaryLabel="임대인 데모 보기"
+                        active={contractRoleView === 'landlord'}
+                        onPrimary={() => openWorkspaceTab('landlord')}
+                        onSecondary={() => openExperienceForAudience('landlord')}
+                      />
+                      <RoleJourneyCard
+                        roleLabel={ROLE_META.tenant.label}
+                        eyebrow="임차인"
+                        title="leaseId 확인 → 승인 → 보증금 예치"
+                        description="임차인은 전달받은 leaseId를 기준으로 계약 내용을 확인하고, 승인을 거쳐 보증금 예치까지 이어갑니다."
+                        points={[
+                          'leaseId 조회는 지갑 없이도 가능',
+                          '승인과 예치는 실제 임차인 지갑에서 실행',
+                          activeLease?.leaseId ? '현재 계약을 바로 이어서 확인 가능' : '임대인이 만든 leaseId가 필요',
+                        ]}
+                        statusLabel={activeLease?.leaseId ? '이어받은 계약 있음' : 'leaseId 입력 대기'}
+                        primaryLabel="임차인 화면 열기"
+                        secondaryLabel="임차인 데모 보기"
+                        active={contractRoleView === 'tenant'}
+                        onPrimary={() => openWorkspaceTab('tenant')}
+                        onSecondary={() => openExperienceForAudience('tenant')}
+                      />
+                      <RoleJourneyCard
+                        roleLabel={ROLE_META.viewer.label}
+                        eyebrow="계약 조회"
+                        title="상태 확인 → 변경 요청 → 정산/반환 확인"
+                        description="둘 중 누구든 계약 전체 상태를 확인하거나, 이미 진행 중인 반환·정산·계약 변경 흐름을 한 화면에서 점검할 때 씁니다."
+                        points={[
+                          '지갑 없이도 leaseId 조회 가능',
+                          '위험 신호와 정산 상태를 함께 확인',
+                          activeLease?.leaseId ? '현재 연결된 계약을 바로 모니터링 가능' : '조회할 leaseId를 붙여넣으면 시작',
+                        ]}
+                        statusLabel={activeLease?.leaseId ? '실시간 조회 가능' : '조회 전용 진입'}
+                        primaryLabel="계약 조회 화면 열기"
+                        secondaryLabel="계약 조회 데모 보기"
+                        active={contractRoleView === 'viewer'}
+                        onPrimary={() => openWorkspaceTab('viewer')}
+                        onSecondary={() => openExperienceForAudience('browser')}
+                      />
                     </div>
 
                     <div className="mt-6 grid gap-3 md:grid-cols-3">
@@ -1050,30 +1213,29 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {walletState === 'connected-active-contract' ? (
-                        <div className="mt-5 grid gap-3 md:grid-cols-3">
-                          {(Object.entries(TAB_META) as [Tab, (typeof TAB_META)[Tab]][]).map(([key, meta]) => (
-                            <button
-                              key={key}
-                              onClick={() => setTab(key)}
-                              className={`rounded-[22px] border p-4 text-left transition ${
-                                tab === key
-                                  ? 'border-cyan-300/30 bg-cyan-300/10'
-                                  : 'border-white/10 bg-slate-950/35 hover:border-white/20 hover:bg-white/[0.04]'
-                              }`}
-                            >
-                              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{meta.eyebrow}</p>
-                              <p className="mt-3 text-base font-semibold text-white">{meta.label}</p>
-                              <p className="mt-2 text-sm leading-6 text-slate-400">{meta.description}</p>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
+                      <div className="mt-5 grid gap-3 md:grid-cols-3">
+                        {(Object.entries(TAB_META) as [Tab, (typeof TAB_META)[Tab]][]).map(([key, meta]) => (
+                          <button
+                            key={key}
+                            onClick={() => setTab(key)}
+                            className={`rounded-[22px] border p-4 text-left transition ${
+                              tab === key
+                                ? 'border-cyan-300/30 bg-cyan-300/10'
+                                : 'border-white/10 bg-slate-950/35 hover:border-white/20 hover:bg-white/[0.04]'
+                            }`}
+                          >
+                            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{meta.eyebrow}</p>
+                            <p className="mt-3 text-base font-semibold text-white">{meta.label}</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">{meta.description}</p>
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="px-5 py-6 sm:px-6">
                       {renderWorkspace({
                         walletState,
+                        activeRole: tab,
                         registrationIntent,
                         isSwitchingChain,
                         onSelectDemo: openExperience,
@@ -1266,6 +1428,7 @@ function deriveWalletState({
 
 function renderWorkspace({
   walletState,
+  activeRole,
   registrationIntent,
   isSwitchingChain,
   onSwitchNetwork,
@@ -1274,6 +1437,7 @@ function renderWorkspace({
   children,
 }: {
   walletState: WalletViewState;
+  activeRole: Tab;
   registrationIntent: boolean;
   isSwitchingChain: boolean;
   onSwitchNetwork: () => void;
@@ -1286,28 +1450,27 @@ function renderWorkspace({
   }
 
   if (walletState === 'wallet-not-connected') {
-    if (registrationIntent) {
-      return (
-        <div className="space-y-5">
-          <WorkspaceActionBanner
-            tone="warning"
-            title="등록 준비 화면을 열었어요"
-            description="주소와 보증금, 기간을 먼저 입력해볼 수 있고 실제 온체인 등록은 상단 Connect Wallet 연결 후 가능합니다."
-          />
-          {children}
-        </div>
-      );
-    }
-
     return (
-      <WorkspaceEmptyState
-        title="지갑 연결 전에도 서비스 구조를 충분히 이해할 수 있어요"
-        description="주소 검색, 샘플 계약, 계약 요약 카드로 흐름을 미리 보시고, 실제 등록 준비 화면도 바로 열어볼 수 있습니다."
-        primaryLabel="새 전세계약 등록 준비"
-        secondaryLabel="데모 보기"
-        onPrimary={onMoveToRegister}
-        onSecondary={onSelectDemo}
-      />
+      <div className="space-y-5">
+        <WorkspaceActionBanner
+          tone={activeRole === 'landlord' ? 'warning' : 'info'}
+          title={
+            activeRole === 'landlord'
+              ? '임대인 등록 화면은 지금 입력부터 볼 수 있어요'
+              : activeRole === 'tenant'
+                ? '임차인 화면은 leaseId 확인까지 먼저 볼 수 있어요'
+                : '계약 조회 화면은 지갑 없이도 먼저 읽어볼 수 있어요'
+          }
+          description={
+            activeRole === 'landlord'
+              ? '주소와 보증금, 기간을 먼저 입력해볼 수 있고 실제 온체인 등록은 상단 Connect Wallet 연결 후 가능합니다.'
+              : activeRole === 'tenant'
+                ? '임대인이 준 leaseId를 붙여 넣어 계약 내용을 먼저 확인할 수 있습니다. 실제 승인과 보증금 예치는 Connect Wallet 후 열립니다.'
+                : '조회할 leaseId가 있으면 지갑 없이도 상태, 정산, 반환 가능 여부를 먼저 읽을 수 있습니다.'
+          }
+        />
+        {children}
+      </div>
     );
   }
 
@@ -1323,28 +1486,27 @@ function renderWorkspace({
   }
 
   if (walletState === 'connected-no-contract') {
-    if (registrationIntent) {
-      return (
-        <div className="space-y-5">
-          <WorkspaceActionBanner
-            tone="info"
-            title="실제 계약 등록 단계로 들어왔어요"
-            description="아래 1단계에서 임차인 주소, 보증금, 기간을 입력하면 leaseId가 생성되고, 이후 임차인이 같은 계약을 확인·승인·예치하는 흐름으로 이어집니다."
-          />
-          {children}
-        </div>
-      );
-    }
-
     return (
-      <WorkspaceEmptyState
-        title="아직 연결된 내 계약이 없어요"
-        description="주소를 먼저 고른 뒤 임대인이 계약을 등록하고, 이후 임차인이 같은 leaseId를 확인·승인·예치하는 흐름으로 진행됩니다."
-        primaryLabel="새 전세계약 등록"
-        secondaryLabel="데모 보기"
-        onPrimary={onMoveToRegister}
-        onSecondary={onSelectDemo}
-      />
+      <div className="space-y-5">
+        <WorkspaceActionBanner
+          tone="info"
+          title={
+            activeRole === 'landlord'
+              ? '실제 계약 등록 단계로 들어왔어요'
+              : activeRole === 'tenant'
+                ? '임대인이 만든 leaseId를 붙여 넣으면 바로 이어서 볼 수 있어요'
+                : '조회할 leaseId를 넣으면 바로 상태를 확인할 수 있어요'
+          }
+          description={
+            activeRole === 'landlord'
+              ? '아래 1단계에서 임차인 주소, 보증금, 기간을 입력하면 leaseId가 생성되고, 이후 임차인이 같은 계약을 확인·승인·예치하는 흐름으로 이어집니다.'
+              : activeRole === 'tenant'
+                ? '지갑은 이미 연결돼 있으니, 임대인이 전달한 leaseId만 넣으면 승인과 예치까지 같은 화면에서 이어서 진행할 수 있습니다.'
+                : '내 지갑에 연결된 활성 계약이 없어도 leaseId만 있으면 상태 조회와 정산 진행 여부를 먼저 볼 수 있습니다.'
+          }
+        />
+        {children}
+      </div>
     );
   }
 
@@ -1486,10 +1648,11 @@ function QuickNavButton({
   );
 }
 
-function EntryChoiceCard({
+function PersonaEntryCard({
   eyebrow,
   title,
   description,
+  points,
   primaryLabel,
   secondaryLabel,
   onPrimary,
@@ -1498,6 +1661,7 @@ function EntryChoiceCard({
   eyebrow: string;
   title: string;
   description: string;
+  points: string[];
   primaryLabel: string;
   secondaryLabel: string;
   onPrimary: () => void;
@@ -1508,6 +1672,13 @@ function EntryChoiceCard({
       <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
       <p className="mt-3 text-xl font-semibold text-white">{title}</p>
       <p className="mt-3 text-sm leading-6 text-slate-300">{description}</p>
+      <div className="mt-4 space-y-2">
+        {points.map((point) => (
+          <p key={point} className="text-xs leading-5 text-slate-400">
+            {point}
+          </p>
+        ))}
+      </div>
       <div className="mt-5 flex flex-wrap gap-3">
         <button
           type="button"
@@ -1523,6 +1694,174 @@ function EntryChoiceCard({
         >
           {secondaryLabel}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function RoleJourneyCard({
+  roleLabel,
+  eyebrow,
+  title,
+  description,
+  points,
+  statusLabel,
+  primaryLabel,
+  secondaryLabel,
+  active,
+  onPrimary,
+  onSecondary,
+}: {
+  roleLabel: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  points: string[];
+  statusLabel: string;
+  primaryLabel: string;
+  secondaryLabel: string;
+  active: boolean;
+  onPrimary: () => void;
+  onSecondary: () => void;
+}) {
+  return (
+    <div
+      className={`rounded-[26px] border p-5 transition ${
+        active
+          ? 'border-cyan-300/30 bg-cyan-300/10'
+          : 'border-white/10 bg-slate-950/45'
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
+          <p className="mt-2 text-lg font-semibold text-white">{roleLabel}</p>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-slate-300">
+          {statusLabel}
+        </span>
+      </div>
+      <p className="mt-4 text-base font-semibold text-white">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
+      <div className="mt-4 space-y-2">
+        {points.map((point) => (
+          <p key={point} className="text-xs leading-5 text-slate-400">
+            {point}
+          </p>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onPrimary}
+          className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+        >
+          {primaryLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onSecondary}
+          className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+        >
+          {secondaryLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DemoGuidePanel({
+  demo,
+  onOpenLandlord,
+  onOpenTenant,
+  onOpenViewer,
+}: {
+  demo: DemoLeaseRecord;
+  onOpenLandlord: () => void;
+  onOpenTenant: () => void;
+  onOpenViewer: () => void;
+}) {
+  return (
+    <div className="glass-card overflow-hidden p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">데모 해설</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">데모 "{demo.title}"이 실제로 보여주는 것</h2>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-slate-300">
+          컨트랙트 상태 {CONTRACT_STATE[demo.state] || '미확인'}
+        </span>
+      </div>
+
+      <div className="mt-5 rounded-[24px] border border-cyan-300/20 bg-cyan-300/10 p-4">
+        <p className="text-sm font-semibold text-white">{demo.focusLabel}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-200">{demo.validitySummary}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {demo.audiences.map((audience) => (
+            <span
+              key={`${demo.id}-${audience}`}
+              className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-100"
+            >
+              {DEMO_AUDIENCE_LABEL[audience]}
+            </span>
+          ))}
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-100">
+            정산 상태 {demo.settlementStatus}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
+        <p className="text-sm font-semibold text-white">이 데모로 이해해야 하는 포인트</p>
+        <div className="mt-4 space-y-3">
+          {demo.featureHighlights.map((point) => (
+            <div key={point} className="rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3">
+              <p className="text-sm leading-6 text-slate-200">{point}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
+        <p className="text-sm font-semibold text-white">실제 화면으로 이어보기</p>
+        <p className="mt-2 text-sm leading-6 text-slate-300">
+          데모를 본 뒤 같은 흐름을 실제 워크스페이스에서 어디로 이어서 봐야 하는지 바로 고를 수 있습니다.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={onOpenLandlord}
+            className={`rounded-full border px-4 py-2 text-sm transition ${
+              demo.linkedWorkspace === 'landlord'
+                ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                : 'border-white/10 text-slate-100 hover:border-cyan-300/30 hover:bg-white/[0.03]'
+            }`}
+          >
+            임대인 화면
+          </button>
+          <button
+            type="button"
+            onClick={onOpenTenant}
+            className={`rounded-full border px-4 py-2 text-sm transition ${
+              demo.linkedWorkspace === 'tenant'
+                ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                : 'border-white/10 text-slate-100 hover:border-cyan-300/30 hover:bg-white/[0.03]'
+            }`}
+          >
+            임차인 화면
+          </button>
+          <button
+            type="button"
+            onClick={onOpenViewer}
+            className={`rounded-full border px-4 py-2 text-sm transition ${
+              demo.linkedWorkspace === 'viewer'
+                ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                : 'border-white/10 text-slate-100 hover:border-cyan-300/30 hover:bg-white/[0.03]'
+            }`}
+          >
+            계약 조회 화면
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2046,31 +2385,21 @@ function buildLiveTrustBundle(
   };
 }
 
-function getContextualAction(
-  walletState: WalletViewState,
-  summaryView: SummaryView,
+function getDemoConnectionAction(
+  demo: DemoLeaseRecord,
   actions: {
-    onOpenDemo: () => void;
-    onSwitchNetwork: () => void;
     onOpenViewer: () => void;
-    onOpenSettlement: () => void;
-    onOpenRegister: () => void;
+    onOpenLandlord: () => void;
+    onOpenTenant: () => void;
   },
 ) {
-  if (walletState === 'wrong-network') {
-    return { label: 'Sepolia로 전환하기', onClick: actions.onSwitchNetwork };
+  if (demo.linkedWorkspace === 'landlord') {
+    return { label: '추천 화면 열기: 임대인', onClick: actions.onOpenLandlord };
   }
 
-  if (walletState === 'connected-no-contract') {
-    return { label: '실제 계약 등록 시작', onClick: actions.onOpenRegister };
+  if (demo.linkedWorkspace === 'tenant') {
+    return { label: '추천 화면 열기: 임차인', onClick: actions.onOpenTenant };
   }
 
-  if (walletState === 'connected-active-contract') {
-    if (summaryView.scenario === 'settlement' || summaryView.scenario === 'termination') {
-      return { label: '퇴실 정산 단계 보기', onClick: actions.onOpenSettlement };
-    }
-    return { label: '내 계약 모니터링 보기', onClick: actions.onOpenViewer };
-  }
-
-  return { label: '데모 스토리 보기', onClick: actions.onOpenDemo };
+  return { label: '추천 화면 열기: 계약 조회', onClick: actions.onOpenViewer };
 }

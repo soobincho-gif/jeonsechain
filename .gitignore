@@ -2,6 +2,7 @@
 .claude/
 package-lock.json
 !JeonseChain/package-lock.json
+!JeonseChain-frontend/package-lock.json
 
 JeonseChain/.env
 JeonseChain/node_modules/
@@ -14,6 +15,7 @@ JeonseChain/data/oracle-status/
 JeonseChain-frontend/node_modules/
 JeonseChain-frontend/.next/
 JeonseChain-frontend/test-results/
+JeonseChain-frontend/playwright-report/
 JeonseChain-frontend/tsconfig.tsbuildinfo
 JeonseChain-frontend/public/evidence/
 JeonseChain-frontend/data/evidence/

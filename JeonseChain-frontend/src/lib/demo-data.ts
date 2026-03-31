@@ -15,6 +15,11 @@ export type DemoLeaseRecord = {
   title: string;
   shortLabel: string;
   scenario: 'safe' | 'risk' | 'settlement' | 'extension' | 'termination';
+  audiences: DemoAudience[];
+  focusLabel: string;
+  validitySummary: string;
+  featureHighlights: string[];
+  linkedWorkspace: 'landlord' | 'tenant' | 'viewer';
   addressId: string;
   depositText: string;
   depositKRW: string;
@@ -38,6 +43,14 @@ export type SettlementStatus =
   | '임차인 응답 대기'
   | '조정 진행'
   | '최종 정산 완료';
+
+export type DemoAudience = 'browser' | 'landlord' | 'tenant';
+
+export const DEMO_AUDIENCE_LABEL: Record<DemoAudience, string> = {
+  browser: '둘러보는 사람',
+  landlord: '임대인',
+  tenant: '임차인',
+};
 
 export const SETTLEMENT_STAGE_ORDER: SettlementStatus[] = [
   '정산 요청 접수',
@@ -146,6 +159,15 @@ export const DEMO_LEASES: DemoLeaseRecord[] = [
     title: '정상 계약',
     shortLabel: '정상 계약 보기',
     scenario: 'safe',
+    audiences: ['browser', 'tenant'],
+    focusLabel: '보증금이 예치된 뒤 위험 신호 없이 보호가 유지되는 기본 흐름',
+    validitySummary: '실제 컨트랙트 기준으로 ACTIVE 상태에서 보증금이 보호함에 들어간 뒤, 특별한 정산이나 위험 이벤트 없이 만기 자동 반환을 기다리는 장면을 설명하는 데모입니다.',
+    featureHighlights: [
+      '보증금 예치가 끝난 뒤 계약 요약 카드가 어떻게 읽히는지',
+      '임차인과 임대인이 같은 leaseId를 공유한 뒤 어떤 상태를 보게 되는지',
+      '만기 전에는 자동 반환이 열리지 않고 보호 상태만 유지된다는 점',
+    ],
+    linkedWorkspace: 'viewer',
     addressId: 'mapo-dmc',
     depositText: '1억 2,000만 원',
     depositKRW: '120000000',
@@ -167,6 +189,15 @@ export const DEMO_LEASES: DemoLeaseRecord[] = [
     title: '위험 계약',
     shortLabel: '위험 계약 보기',
     scenario: 'risk',
+    audiences: ['browser', 'landlord'],
+    focusLabel: '오라클 위험 신호가 켜졌을 때 반환보다 보호 조치가 우선되는 흐름',
+    validitySummary: '실제 설계상 DANGER 상태가 되면 토큰 동결과 HUG 중재가 먼저 열리고, 자동 반환은 잠기는 구조입니다. 이 데모는 그 분기점을 설명하기 위한 시나리오입니다.',
+    featureHighlights: [
+      '위험 점수와 경고 상태가 요약 카드에 어떻게 반영되는지',
+      '임대인 입장에서 사전 점검과 위험 감지가 왜 중요한지',
+      '위험 상태에서는 일반 반환보다 중재/조회 화면이 먼저 필요하다는 점',
+    ],
+    linkedWorkspace: 'viewer',
     addressId: 'guro',
     depositText: '9,000만 원',
     depositKRW: '90000000',
@@ -188,6 +219,15 @@ export const DEMO_LEASES: DemoLeaseRecord[] = [
     title: '퇴실 정산 계약',
     shortLabel: '퇴실 정산 보기',
     scenario: 'settlement',
+    audiences: ['browser', 'landlord', 'tenant'],
+    focusLabel: '무분쟁 금액은 먼저 반환하고, 분쟁 가능 금액만 제한적으로 보류하는 퇴실 정산 흐름',
+    validitySummary: '실제 정산 설계는 전체 보증금을 임의로 묶지 않고, 정산 청구 단계와 임차인 응답 단계에 따라 보류 금액만 제한적으로 움직이도록 되어 있습니다. 이 데모는 그 핵심 원칙을 보여줍니다.',
+    featureHighlights: [
+      '임대인이 정산 요청을 올리고 임차인이 응답하는 순서',
+      '무분쟁 금액과 분쟁 보류 금액이 어떻게 나뉘는지',
+      '임차인과 임대인이 모두 이해해야 하는 정산 단계별 변화',
+    ],
+    linkedWorkspace: 'viewer',
     addressId: 'songpa',
     depositText: '2억 5,000만 원',
     depositKRW: '250000000',
@@ -209,6 +249,15 @@ export const DEMO_LEASES: DemoLeaseRecord[] = [
     title: '계약 연장 시나리오',
     shortLabel: '계약 연장 보기',
     scenario: 'extension',
+    audiences: ['landlord', 'tenant'],
+    focusLabel: '만기 직전 양 당사자 합의로 계약 기간을 연장하는 흐름',
+    validitySummary: '실제 컨트랙트는 연장 제안이 올라오면 상대방 승인 전까지 확정되지 않고, 승인 뒤에만 만기일이 갱신됩니다. 이 데모는 그 양방향 합의 구조를 보여줍니다.',
+    featureHighlights: [
+      '임대인 또는 임차인이 먼저 연장 제안을 올릴 수 있다는 점',
+      '상대방 승인 전에는 기존 만기일이 그대로 유지된다는 점',
+      '연장 이후에도 같은 계약 문맥이 이어진다는 점',
+    ],
+    linkedWorkspace: 'landlord',
     addressId: 'seongsu',
     depositText: '1억 8,000만 원',
     depositKRW: '180000000',
@@ -230,6 +279,15 @@ export const DEMO_LEASES: DemoLeaseRecord[] = [
     title: '중도 해지 시나리오',
     shortLabel: '중도 해지 보기',
     scenario: 'termination',
+    audiences: ['landlord', 'tenant'],
+    focusLabel: '양측 합의로 조기 종료하고 바로 퇴실 정산 단계로 넘어가는 흐름',
+    validitySummary: '실제 설계에서는 중도 해지도 한쪽 요청만으로 끝나지 않고, 상대방이 승인해야 정산 단계로 넘어갑니다. 이 데모는 계약 변경과 퇴실 정산이 이어지는 연결 지점을 설명합니다.',
+    featureHighlights: [
+      '중도 해지 요청과 승인, 거절이 어떻게 구분되는지',
+      '승인 직후 정산 요청으로 이어지는 전환 지점',
+      '임차인과 임대인이 모두 같은 상태 전이를 이해해야 하는 이유',
+    ],
+    linkedWorkspace: 'tenant',
     addressId: 'songpa',
     depositText: '1억 6,000만 원',
     depositKRW: '160000000',

@@ -1,17 +1,19 @@
 'use client';
 
-import { DemoLeaseRecord } from '@/lib/demo-data';
+import { DEMO_AUDIENCE_LABEL, DemoAudience, DemoLeaseRecord } from '@/lib/demo-data';
 
 type GuidedStoryModeProps = {
   demos: DemoLeaseRecord[];
   selectedId: string;
   scenario: DemoLeaseRecord['scenario'];
+  audienceFilter: DemoAudience | 'all';
   currentStage: number;
   situation: string;
   storyTitle: string;
   storyDescription: string;
   nextActionLabel: string;
   detailMode: boolean;
+  onAudienceFilterChange: (audience: DemoAudience | 'all') => void;
   onSelect: (demoId: string) => void;
 };
 
@@ -27,15 +29,23 @@ export default function GuidedStoryMode({
   demos,
   selectedId,
   scenario,
+  audienceFilter,
   currentStage,
   situation,
   storyTitle,
   storyDescription,
   nextActionLabel,
   detailMode,
+  onAudienceFilterChange,
   onSelect,
 }: GuidedStoryModeProps) {
   const sceneMeta = guidedSceneMeta(scenario, currentStage, nextActionLabel);
+  const orderedDemos = [...demos].sort((left, right) => {
+    if (audienceFilter === 'all') return 0;
+    const leftMatch = left.audiences.includes(audienceFilter) ? 1 : 0;
+    const rightMatch = right.audiences.includes(audienceFilter) ? 1 : 0;
+    return rightMatch - leftMatch;
+  });
 
   return (
     <section className="glass-card overflow-hidden p-5 sm:p-6">
@@ -46,6 +56,26 @@ export default function GuidedStoryMode({
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
             처음 보는 사람도 흐름을 따라가기 쉽도록 계약의 현재 상황, 다음 액션, 진행 단계를 한 줄 스토리로 묶었습니다.
           </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(['all', 'browser', 'landlord', 'tenant'] as const).map((audience) => {
+              const active = audienceFilter === audience;
+              const label = audience === 'all' ? '전체 시나리오' : `${DEMO_AUDIENCE_LABEL[audience]} 추천`;
+              return (
+                <button
+                  key={audience}
+                  type="button"
+                  onClick={() => onAudienceFilterChange(audience)}
+                  className={`rounded-full border px-3 py-2 text-xs transition ${
+                    active
+                      ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                      : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
           {detailMode ? '상세 용어 모드' : '쉬운 설명 모드'}
@@ -86,8 +116,10 @@ export default function GuidedStoryMode({
       </div>
 
       <div className="mt-6 grid gap-3 lg:grid-cols-3">
-        {demos.map((demo) => {
+        {orderedDemos.map((demo) => {
           const selected = demo.id === selectedId;
+          const recommended =
+            audienceFilter !== 'all' && demo.audiences.includes(audienceFilter);
           return (
             <button
               key={demo.id}
@@ -104,7 +136,28 @@ export default function GuidedStoryMode({
                   {demo.riskLabel}
                 </span>
               </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {demo.audiences.map((audience) => (
+                  <span
+                    key={`${demo.id}-${audience}`}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] ${
+                      recommended && audienceFilter === audience
+                        ? 'border-cyan-300/30 bg-cyan-300/12 text-cyan-100'
+                        : 'border-white/10 bg-white/[0.03] text-slate-300'
+                    }`}
+                  >
+                    {DEMO_AUDIENCE_LABEL[audience]}
+                  </span>
+                ))}
+                {recommended ? (
+                  <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] text-emerald-100">
+                    현재 추천
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-3 text-sm font-medium text-cyan-100">{demo.focusLabel}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">{demo.storyDescription}</p>
+              <p className="mt-3 text-xs leading-5 text-slate-400">{demo.validitySummary}</p>
               <p className="mt-3 text-xs text-slate-500">{demo.shortLabel}</p>
             </button>
           );
