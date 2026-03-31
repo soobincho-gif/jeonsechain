@@ -20,7 +20,10 @@ test.describe('JeonseChain current IA smoke', () => {
     await expect(page.getByText('상태로 보는 이유를 쉬운 언어로 정리했습니다')).toBeVisible();
 
     await page.getByRole('button', { name: '신뢰 프로필' }).click();
-    await expect(page.getByText('이 프로필이 보여주는 것')).toBeVisible();
+    await expect(page.getByText('역할별로 보면 더 이해가 쉬워요')).toBeVisible();
+    await expect(page.getByRole('button', { name: '임대인 관점' })).toBeVisible();
+    await page.getByRole('button', { name: '임차인 관점' }).click();
+    await expect(page.getByText('임차인 기준 프로세스')).toBeVisible();
 
     await page.getByRole('button', { name: '활동 로그' }).click();
     await expect(page.getByRole('heading', { name: '최근 활동과 시스템 반영 기록' })).toBeVisible();
