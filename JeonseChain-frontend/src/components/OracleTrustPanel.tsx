@@ -69,6 +69,10 @@ export default function OracleTrustPanel({
     () => (summary ? easyRiskSummary(summary.risk.score, riskSignals) : null),
     [summary, riskSignals],
   );
+  const displayedRiskLog = useMemo(
+    () => (summary ? normalizeRiskLog(summary) : []),
+    [summary],
+  );
 
   return (
     <>
@@ -175,7 +179,7 @@ export default function OracleTrustPanel({
                     {detailMode ? 'Score Reasoning Log' : '세부 판단 로그'}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {summary.risk.log.map((line) => (
+                    {displayedRiskLog.map((line) => (
                       <span
                         key={line}
                         className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-slate-200"
@@ -572,12 +576,20 @@ function signalBadgeClass(tone: RiskSignalTone) {
 
 function buildRiskSignals(summary: OracleSnapshot['latest']): DerivedRiskSignal[] {
   const { metrics } = summary;
+  const seniorDebtUnverified = summary.attestation.seniorDebtSource === 'DEFAULT_ZERO';
   const salePrice = metrics.avgSalePrice || 0;
   const depositRatio = salePrice > 0 ? metrics.avgRentDeposit / salePrice : 0;
   const repaymentGap = Math.max(metrics.avgRentDeposit + metrics.seniorDebtKRW - salePrice, 0);
 
   return [
-    metrics.seniorDebtKRW > 0
+    seniorDebtUnverified
+      ? {
+          label: '선순위채권 / 근저당',
+          statusLabel: '미확인',
+          description: '등기 기반 선순위채권 데이터가 아직 입력되지 않아 LTV를 확정적으로 판단할 수 없는 상태입니다.',
+          tone: 'monitor',
+        }
+      : metrics.seniorDebtKRW > 0
       ? {
           label: '선순위채권 / 근저당',
           statusLabel: '주의',
@@ -655,6 +667,9 @@ function buildRiskSignals(summary: OracleSnapshot['latest']): DerivedRiskSignal[
 function easyRiskSummary(score: number, signals: DerivedRiskSignal[]) {
   const warningCount = signals.filter((signal) => signal.tone === 'warning').length;
   const monitorCount = signals.filter((signal) => signal.tone === 'monitor').length;
+  const hasUnverifiedDebtSignal = signals.some(
+    (signal) => signal.label === '선순위채권 / 근저당' && signal.statusLabel === '미확인',
+  );
 
   if (score >= 70 || warningCount >= 2) {
     return {
@@ -676,6 +691,16 @@ function easyRiskSummary(score: number, signals: DerivedRiskSignal[]) {
     };
   }
 
+  if (hasUnverifiedDebtSignal) {
+    return {
+      label: '담보 정보 재확인',
+      tone: 'monitor' as const,
+      summary:
+        '현재 점수는 낮더라도 선순위채권 데이터가 아직 비어 있어 LTV를 확정적으로 안전하다고 보긴 어렵습니다.',
+      helper: '이 경우 0%는 실제 담보가 없다는 뜻이 아니라, 담보 정보가 아직 입력되지 않았다는 뜻에 가깝습니다.',
+    };
+  }
+
   return {
     label: '현재는 안정 구간',
     tone: 'safe' as const,
@@ -683,6 +708,18 @@ function easyRiskSummary(score: number, signals: DerivedRiskSignal[]) {
       '현재 공개 데이터 기준으로 큰 위험 신호는 많지 않습니다. 다만 실제 계약 전에는 최신 등기와 특약 조건까지 함께 보는 것이 좋습니다.',
     helper: '안전 표시는 위험 신호가 적다는 뜻이지, 법률 검토를 완전히 대신한다는 의미는 아닙니다.',
   };
+}
+
+function normalizeRiskLog(summary: OracleSnapshot['latest']) {
+  if (summary.attestation.seniorDebtSource !== 'DEFAULT_ZERO') {
+    return summary.risk.log;
+  }
+
+  return summary.risk.log.map((line) =>
+    line.startsWith('LTV ')
+      ? 'LTV 미확인 (선순위채권 데이터 없음)'
+      : line,
+  );
 }
 
 function formatPercent(value?: number | null) {

@@ -357,6 +357,7 @@ function generateMockData(job) {
   return {
     officialPriceKRW: 300000000 + seed * 1000000,
     seniorDebtKRW: job.seniorDebtKRW ?? 50000000 + seed * 200000,
+    seniorDebtVerified: job.seniorDebtKRW != null,
     auctionStarted: Boolean(job.auctionStarted || seed > 92),
     newMortgageSet: Boolean(job.newMortgageSet || seed > 83),
     avgRentDeposit: 250000000 + seed * 800000,
@@ -400,6 +401,7 @@ async function collectData(job) {
     return {
       officialPriceKRW,
       seniorDebtKRW: job.seniorDebtKRW ?? 0,
+      seniorDebtVerified: job.seniorDebtKRW != null,
       auctionStarted: Boolean(job.auctionStarted),
       newMortgageSet: Boolean(job.newMortgageSet),
       avgRentDeposit,
@@ -421,16 +423,20 @@ export function calculateRiskScore(data) {
   const log = [];
 
   if (data.officialPriceKRW > 0) {
-    const ltvPct = (data.seniorDebtKRW / data.officialPriceKRW) * 100;
-    if (ltvPct >= 80) {
-      score += 40;
-      log.push(`LTV ${ltvPct.toFixed(1)}% (위험) +40`);
-    } else if (ltvPct >= 60) {
-      const points = Math.round(((ltvPct - 60) / 20) * 30);
-      score += points;
-      log.push(`LTV ${ltvPct.toFixed(1)}% (주의) +${points}`);
+    if (data.seniorDebtVerified === false) {
+      log.push('LTV 미확인 (선순위채권 데이터 없음)');
     } else {
-      log.push(`LTV ${ltvPct.toFixed(1)}% (안전) +0`);
+      const ltvPct = (data.seniorDebtKRW / data.officialPriceKRW) * 100;
+      if (ltvPct >= 80) {
+        score += 40;
+        log.push(`LTV ${ltvPct.toFixed(1)}% (위험) +40`);
+      } else if (ltvPct >= 60) {
+        const points = Math.round(((ltvPct - 60) / 20) * 30);
+        score += points;
+        log.push(`LTV ${ltvPct.toFixed(1)}% (주의) +${points}`);
+      } else {
+        log.push(`LTV ${ltvPct.toFixed(1)}% (안전) +0`);
+      }
     }
   }
 

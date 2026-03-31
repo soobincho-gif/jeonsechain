@@ -41,6 +41,23 @@ describe("oracle-fetcher helpers", function () {
     expect(log.join(" ")).to.include("신규 근저당");
   });
 
+  it("marks LTV as unverified when senior debt data is missing", async () => {
+    const { score, log } = calculateRiskScore({
+      officialPriceKRW: 300000000,
+      seniorDebtKRW: 0,
+      seniorDebtVerified: false,
+      auctionStarted: false,
+      newMortgageSet: false,
+      avgRentDeposit: 90000000,
+      avgSalePrice: 300000000,
+      rentSamples: 10,
+      saleSamples: 10,
+    });
+
+    expect(score).to.equal(0);
+    expect(log[0]).to.equal("LTV 미확인 (선순위채권 데이터 없음)");
+  });
+
   it("derives explainable structured risk signals from market data", async () => {
     const signals = deriveRiskSignals({
       seniorDebtKRW: 180000000,
