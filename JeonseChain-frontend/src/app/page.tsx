@@ -17,6 +17,7 @@ import OracleTrustPanel from '@/components/OracleTrustPanel';
 import SettlementPreview from '@/components/SettlementPreview';
 import TenantPanel from '@/components/TenantPanel';
 import ToastStack from '@/components/ToastStack';
+import TrustProfilePanel from '@/components/TrustProfilePanel';
 import {
   CHAIN_ID,
   CONTRACT_ADDRESSES,
@@ -39,6 +40,8 @@ import { getTrustBundle, TrustBundle, TrustBundleKind } from '@/lib/trust';
 import { ActivityItem, LeaseDraft } from '@/lib/workflow';
 
 type Tab = 'landlord' | 'tenant' | 'viewer';
+type Surface = 'landing' | 'experience' | 'contract' | 'more';
+type MoreView = 'signals' | 'trust' | 'activity' | 'data' | 'faq';
 type WalletViewState =
   | 'wallet-not-connected'
   | 'wallet-connecting'
@@ -85,19 +88,19 @@ const TAB_META: Record<
 > = {
   landlord: {
     label: '새 전세계약 등록',
-    eyebrow: 'Step 1',
+    eyebrow: '1단계',
     title: '주소와 계약 조건을 등록해 leaseId를 생성',
     description: '주소 검색에서 고른 부동산을 바탕으로 임차인 주소, 보증금, 기간을 입력하고 온체인 계약을 엽니다.',
   },
   tenant: {
     label: '보증금 예치',
-    eyebrow: 'Step 2',
+    eyebrow: '2단계',
     title: '임차인 승인과 입금을 한 흐름으로 처리',
     description: '선택된 leaseId를 자동으로 이어받아 승인과 예치를 자연스럽게 진행합니다.',
   },
   viewer: {
     label: '내 계약 모니터링',
-    eyebrow: 'Step 3',
+    eyebrow: '3단계',
     title: '위험 감지와 자동 반환 상태를 실시간 확인',
     description: '만기까지 남은 일수, 리스크 플래그, 반환 가능 여부를 5초 간격으로 갱신합니다.',
   },
@@ -118,11 +121,41 @@ const CORE_VALUES = [
   },
 ];
 
+const MORE_MENU: { key: MoreView; label: string; description: string }[] = [
+  {
+    key: 'signals',
+    label: '위험 신호',
+    description: '왜 주의/위험으로 보이는지 쉬운 문장으로 읽습니다.',
+  },
+  {
+    key: 'trust',
+    label: '신뢰 프로필',
+    description: '사람 점수 대신 검증 가능한 계약 이력을 봅니다.',
+  },
+  {
+    key: 'activity',
+    label: '활동 로그',
+    description: '내 계약과 시스템 반영 기록을 최근 순서로 봅니다.',
+  },
+  {
+    key: 'data',
+    label: '데이터 근거',
+    description: '오라클, 멀티시그, 해시와 tx 같은 검증 정보를 확인합니다.',
+  },
+  {
+    key: 'faq',
+    label: 'FAQ',
+    description: '용어와 동작 방식을 빠르게 이해합니다.',
+  },
+];
+
 export default function Home() {
   const { address, isConnected, status } = useAccount();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
 
+  const [surface, setSurface] = useState<Surface>('landing');
+  const [moreView, setMoreView] = useState<MoreView>('signals');
   const [tab, setTab] = useState<Tab>('landlord');
   const [activeLease, setActiveLease] = useState<LeaseDraft | null>(null);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -342,6 +375,7 @@ export default function Home() {
     const demo = DEMO_LEASES.find((item) => item.id === demoId);
     if (!demo) return;
 
+    setSurface('experience');
     setDemoMode(true);
     setRegistrationIntent(false);
     setSelectedDemoId(demoId);
@@ -350,19 +384,21 @@ export default function Home() {
     const addressItem = ADDRESS_BOOK.find((item) => item.id === demo.addressId);
     if (addressItem) setSelectedAddress(addressItem);
     pushActivity({
-      title: '데모 계약을 불러왔어요',
+      title: '계약 정보를 불러왔어요',
       description: '지갑 연결 없이도 전세 lifecycle과 퇴실 정산 흐름을 미리 볼 수 있습니다.',
       tone: 'info',
     });
   }
 
   function openDemoSelector() {
+    setSurface('experience');
     setDemoMode(true);
     setRegistrationIntent(false);
     scrollToSection(guidedDemoRef, 'demo');
   }
 
   function openWorkspaceTab(nextTab: Tab) {
+    setSurface('contract');
     setDemoMode(false);
     setRegistrationIntent(nextTab === 'landlord');
     setTab(nextTab);
@@ -370,9 +406,37 @@ export default function Home() {
   }
 
   function openSettlementDemo(status?: SettlementStatus) {
+    setSurface('experience');
     selectDemoLease('settlement-contract');
     if (status) setSettlementDemoStatus(status);
     scrollToSection(settlementRef, 'settlement');
+  }
+
+  function openLanding() {
+    setSurface('landing');
+    setAlertsOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function openExperience() {
+    setSurface('experience');
+    setDemoMode(true);
+    setRegistrationIntent(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function openContractHome() {
+    setSurface('contract');
+    setDemoMode(false);
+    setRegistrationIntent(!activeLeaseReady);
+    setTab(activeLeaseReady ? 'viewer' : 'landlord');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function openMore(nextView: MoreView = 'signals') {
+    setSurface('more');
+    setMoreView(nextView);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   const heroMetrics = [
@@ -401,6 +465,7 @@ export default function Home() {
     onOpenSettlement: () => openSettlementDemo(settlementDemoStatus),
     onOpenRegister: () => openWorkspaceTab('landlord'),
   });
+  const signalOverview = useMemo(() => buildSignalOverview(summaryView), [summaryView]);
 
   return (
     <div className="min-h-screen pb-20">
@@ -410,9 +475,13 @@ export default function Home() {
         <header className="flex flex-wrap items-center justify-between gap-4 rounded-[28px] border border-white/10 bg-slate-950/55 px-5 py-4 backdrop-blur-xl">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100">
+              <button
+                type="button"
+                onClick={openLanding}
+                className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100 transition hover:bg-cyan-300/16"
+              >
                 JeonseChain
-              </span>
+              </button>
               <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-slate-300">
                 {NETWORK_LABEL} Testnet
               </span>
@@ -456,244 +525,515 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="mt-4 flex flex-wrap gap-3">
-          <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
-            현재 설명 모드: {detailMode ? '상세 용어 모드' : '쉬운 설명 모드'}
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
-            현재 흐름: {demoMode ? '데모 시나리오 탐색' : '실제 등록 준비 / 실시간 계약 확인'}
-          </span>
-        </div>
-
-        <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_520px]">
-          <div className="glass-card subtle-grid overflow-hidden p-5 sm:p-7">
-            <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-center">
-              <div className="max-w-3xl">
-                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">전세보증금 구조 보호 플랫폼</p>
-                <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
-                  전세보증금을 구조화해 보호하는
-                  <br className="hidden sm:block" />
-                  한국형 부동산 금융 플랫폼
-                </h1>
-                <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
-                  주소 검색, 계약 등록, 보증금 예치, 위험 감지, 자동 반환, 제한적 퇴실 정산까지의 흐름을
-                  한 화면에서 이해할 수 있도록 구성했습니다. 발표용 데모로도, 실제 온체인 기능 시연용으로도
-                  바로 설명할 수 있는 구조입니다.
-                </p>
-              </div>
-
-              <HeroProtectionScene tone={summaryView.tone} statusLabel={summaryView.statusLabel} />
-            </div>
-
-            <div className="mt-6 grid gap-3 md:grid-cols-3">
-              {CORE_VALUES.map((value) => (
-                <div key={value.title} className="rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
-                  <p className="text-base font-semibold text-white">{value.title}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">{value.description}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <button
-                onClick={contextualAction.onClick}
-                className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
-              >
-                {contextualAction.label}
-              </button>
-              <button
-                onClick={openDemoSelector}
-                className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
-              >
-                데모 시나리오 선택
-              </button>
-              <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-400">
-                배포 지갑 {formatAddress(DEPLOYMENT_META.deployer, 8, 6)}
-              </span>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-400">
-              <span className="rounded-full border border-white/10 px-3 py-2">
-                실사용 흐름은 아래 워크스페이스 Step 1부터 시작됩니다.
-              </span>
-              <span className="rounded-full border border-white/10 px-3 py-2">
-                데모 버튼은 시나리오별 계약 흐름 설명으로 바로 연결됩니다.
-              </span>
-            </div>
-
-            <div className="mt-6 grid gap-3 md:grid-cols-3">
-              {heroMetrics.map((item) => (
-                <div key={item.label} className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
-                  <p className="mt-3 text-xl font-semibold text-white">{item.value}</p>
-                  <p className="mt-2 text-sm text-slate-400">{item.helper}</p>
-                </div>
-              ))}
-            </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-3">
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
+              현재 설명 모드: {detailMode ? '상세 용어 모드' : '쉬운 설명 모드'}
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
+              현재 흐름: {demoMode ? '체험용 샘플 계약' : '내 계약 관리 흐름'}
+            </span>
           </div>
-
-          <MyContractSummary
-            {...summaryView}
-            detailMode={detailMode}
-            activities={activities}
-          />
-        </section>
-
-        <div className="mt-6">
-          <OracleTrustPanel
-            detailMode={detailMode}
-            autoRefreshEnabled={autoRefreshEnabled}
-          />
+          {surface !== 'landing' ? (
+            <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs text-cyan-100">
+              {surface === 'experience'
+                ? '체험하기'
+                : surface === 'contract'
+                  ? '내 계약'
+                  : '더보기'}
+            </span>
+          ) : null}
         </div>
 
-        <div className="mt-6">
-          <HugMultisigPanel
-            activeLease={demoMode ? null : activeLease}
-            autoRefreshEnabled={autoRefreshEnabled}
-            onActivity={pushActivity}
-          />
-        </div>
+        {surface === 'landing' ? (
+          <>
+            <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.08fr)_420px]">
+              <div className="glass-card subtle-grid overflow-hidden p-5 sm:p-7">
+                <p className="text-xs uppercase tracking-[0.24em] text-slate-400">JeonseChain 시작하기</p>
+                <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
+                  처음 보는 사람도
+                  <br className="hidden sm:block" />
+                  5초 안에 이해할 수 있게 시작점을 나눴습니다
+                </h1>
+                <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
+                  샘플 계약으로 서비스 흐름을 설명하는 체험 모드와, 주소 검색부터 계약 등록까지 이어지는
+                  내 계약 관리 모드를 분리했습니다. 교수님 시연과 실제 기능 시연이 한 화면에서 섞여 보이지 않도록
+                  입구부터 나눠둔 구조입니다.
+                </p>
 
-        <div
-          ref={guidedDemoRef}
-          className={`mt-6 scroll-mt-24 ${highlightedSection === 'demo' ? 'section-spotlight rounded-[32px]' : ''}`}
-        >
-          <GuidedStoryMode
-            demos={DEMO_LEASES}
-            selectedId={selectedDemoId}
-            currentStage={summaryView.stage}
-            situation={summaryView.situationTitle}
-            storyTitle={selectedDemo.storyTitle}
-            storyDescription={selectedDemo.storyDescription}
-            nextActionLabel={summaryView.nextActionLabel}
-            detailMode={detailMode}
-            onSelect={selectDemoLease}
-          />
-        </div>
-
-        <div className="mt-6">
-          <AddressSearchPanel
-            selectedAddress={selectedAddress}
-            onSelect={(record) => {
-              setSelectedAddress(record);
-            }}
-          />
-        </div>
-
-        <div
-          ref={settlementRef}
-          className={`mt-6 scroll-mt-24 ${highlightedSection === 'settlement' ? 'section-spotlight rounded-[32px]' : ''}`}
-        >
-          <SettlementPreview
-            depositKRW={summaryView.depositKRW}
-            statusLabel={demoMode ? '시나리오 시뮬레이션' : '실시간 온체인 정산 레이어'}
-            settlementStatus={summaryView.settlementStatus}
-            detailMode={detailMode}
-            isDemoMode={demoMode}
-            scenario={summaryView.scenario}
-            onSelectSettlementStatus={setSettlementDemoStatus}
-            onOpenSettlementDemo={() => openSettlementDemo('정산 요청 접수')}
-          />
-        </div>
-
-        <main
-          ref={workspaceRef}
-          className={`mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px] scroll-mt-24 ${highlightedSection === 'workspace' ? 'section-spotlight rounded-[32px]' : ''}`}
-        >
-          <section className="glass-card overflow-hidden">
-            <div className="border-b border-white/10 px-5 py-5 sm:px-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{TAB_META[tab].eyebrow}</p>
-                  <h2 className="mt-2 text-2xl font-semibold text-white">{TAB_META[tab].title}</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                    {TAB_META[tab].description}
-                  </p>
+                <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                  <EntryChoiceCard
+                    eyebrow="체험하기"
+                    title="샘플 계약으로 서비스 흐름 보기"
+                    description="정상 계약, 위험 계약, 퇴실 정산 시나리오를 고르며 JeonseChain의 보호 구조를 빠르게 이해합니다."
+                    primaryLabel="데모 시작"
+                    secondaryLabel="시나리오 보기"
+                    onPrimary={openExperience}
+                    onSecondary={openDemoSelector}
+                  />
+                  <EntryChoiceCard
+                    eyebrow="내 계약 시작하기"
+                    title="주소 검색과 계약 등록부터 바로 시작"
+                    description="선택한 주소의 위험 상태를 먼저 보고, 보증금·기간·지갑 연결까지 실제 계약 관리 흐름으로 이어집니다."
+                    primaryLabel="내 계약 보기"
+                    secondaryLabel="주소 검색 열기"
+                    onPrimary={openContractHome}
+                    onSecondary={openContractHome}
+                  />
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
-                  연결 상태: {WALLET_STATE_LABEL[walletState]}
-                </div>
-              </div>
 
-              {walletState === 'connected-active-contract' ? (
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                  {(Object.entries(TAB_META) as [Tab, (typeof TAB_META)[Tab]][]).map(([key, meta]) => (
-                    <button
-                      key={key}
-                      onClick={() => setTab(key)}
-                      className={`rounded-[22px] border p-4 text-left transition ${
-                        tab === key
-                          ? 'border-cyan-300/30 bg-cyan-300/10'
-                          : 'border-white/10 bg-slate-950/35 hover:border-white/20 hover:bg-white/[0.04]'
-                      }`}
-                    >
-                      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{meta.eyebrow}</p>
-                      <p className="mt-3 text-base font-semibold text-white">{meta.label}</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-400">{meta.description}</p>
-                    </button>
+                <div className="mt-6 flex flex-wrap gap-3 text-xs text-slate-400">
+                  <button
+                    type="button"
+                    onClick={() => openMore('signals')}
+                    className="rounded-full border border-white/10 px-3 py-2 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+                  >
+                    위험 신호는 어떻게 판단하나요?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMore('trust')}
+                    className="rounded-full border border-white/10 px-3 py-2 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+                  >
+                    신뢰 프로필이란?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMore('data')}
+                    className="rounded-full border border-white/10 px-3 py-2 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+                  >
+                    데이터는 어디서 오나요?
+                  </button>
+                </div>
+
+                <div className="mt-6 grid gap-3 md:grid-cols-3">
+                  {CORE_VALUES.map((value) => (
+                    <div key={value.title} className="rounded-[24px] border border-white/10 bg-slate-950/45 p-4">
+                      <p className="text-base font-semibold text-white">{value.title}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-400">{value.description}</p>
+                    </div>
                   ))}
                 </div>
-              ) : null}
-            </div>
+              </div>
 
-            <div className="px-5 py-6 sm:px-6">
-              {renderWorkspace({
-                walletState,
-                registrationIntent,
-                isSwitchingChain,
-                onSelectDemo: openDemoSelector,
-                onSwitchNetwork: () => switchChain({ chainId: CHAIN_ID }),
-                onMoveToRegister: () => openWorkspaceTab('landlord'),
-                children: (
+              <div className="glass-card overflow-hidden p-5 sm:p-6">
+                <HeroProtectionScene tone={summaryView.tone} statusLabel={summaryView.statusLabel} />
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  {heroMetrics.map((item) => (
+                    <div key={item.label} className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+                      <p className="mt-3 text-xl font-semibold text-white">{item.value}</p>
+                      <p className="mt-2 text-sm text-slate-400">{item.helper}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </>
+        ) : (
+          <>
+            <nav className="mt-6 flex flex-wrap items-center gap-3 rounded-[26px] border border-white/10 bg-slate-950/45 px-4 py-3">
+              <TopNavButton
+                active={surface === 'experience'}
+                label="체험하기"
+                description="샘플 계약 설명 모드"
+                onClick={openExperience}
+              />
+              <TopNavButton
+                active={surface === 'contract'}
+                label="내 계약"
+                description="주소 검색과 계약 관리"
+                onClick={openContractHome}
+              />
+              <TopNavButton
+                active={surface === 'more'}
+                label="더보기"
+                description="위험·신뢰·근거"
+                onClick={() => openMore(moreView)}
+              />
+            </nav>
+
+            {surface === 'more' ? (
+              <div className="mt-4 flex flex-wrap gap-2 rounded-[22px] border border-white/10 bg-slate-950/40 p-2">
+                {MORE_MENU.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setMoreView(item.key)}
+                    className={`rounded-full px-4 py-2 text-sm transition ${
+                      moreView === item.key
+                        ? 'bg-cyan-300 text-slate-950'
+                        : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {surface === 'experience' ? (
+              <>
+                <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_520px]">
+                  <div className="glass-card subtle-grid overflow-hidden p-5 sm:p-7">
+                    <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-center">
+                      <div className="max-w-3xl">
+                        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">체험하기</p>
+                        <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
+                          샘플 계약으로
+                          <br className="hidden sm:block" />
+                          보호, 위험 감지, 퇴실 정산 흐름을 보여줍니다
+                        </h1>
+                        <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
+                          발표와 데모에 맞게 정상 계약, 위험 계약, 퇴실 정산 계약을 선택하면 아래 스토리와 요약 카드가
+                          함께 바뀝니다. 실사용 데이터와 섞이지 않도록 이 탭은 설명용 샘플 계약만 보여줍니다.
+                        </p>
+                      </div>
+
+                      <HeroProtectionScene tone={summaryView.tone} statusLabel={summaryView.statusLabel} />
+                    </div>
+
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={contextualAction.onClick}
+                        className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                      >
+                        {contextualAction.label}
+                      </button>
+                      <button
+                        onClick={openContractHome}
+                        className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+                      >
+                        내 계약으로 이동
+                      </button>
+                      <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-400">
+                        샘플 계약 {selectedDemo.storyTitle}
+                      </span>
+                    </div>
+
+                    <div className="mt-6 grid gap-3 md:grid-cols-3">
+                      {heroMetrics.map((item) => (
+                        <div key={item.label} className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+                          <p className="mt-3 text-xl font-semibold text-white">{item.value}</p>
+                          <p className="mt-2 text-sm text-slate-400">{item.helper}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <MyContractSummary
+                    {...summaryView}
+                    detailMode={detailMode}
+                    activities={activities}
+                    availableTabs={['contract', 'settlement']}
+                  />
+                </section>
+
+                <div
+                  ref={guidedDemoRef}
+                  className={`mt-6 scroll-mt-24 ${highlightedSection === 'demo' ? 'section-spotlight rounded-[32px]' : ''}`}
+                >
+                  <GuidedStoryMode
+                    demos={DEMO_LEASES}
+                    selectedId={selectedDemoId}
+                    currentStage={summaryView.stage}
+                    situation={summaryView.situationTitle}
+                    storyTitle={selectedDemo.storyTitle}
+                    storyDescription={selectedDemo.storyDescription}
+                    nextActionLabel={summaryView.nextActionLabel}
+                    detailMode={detailMode}
+                    onSelect={selectDemoLease}
+                  />
+                </div>
+
+                <div
+                  ref={settlementRef}
+                  className={`mt-6 scroll-mt-24 ${highlightedSection === 'settlement' ? 'section-spotlight rounded-[32px]' : ''}`}
+                >
+                  <SettlementPreview
+                    depositKRW={summaryView.depositKRW}
+                    statusLabel="시나리오 시뮬레이션"
+                    settlementStatus={summaryView.settlementStatus}
+                    detailMode={detailMode}
+                    isDemoMode
+                    scenario={summaryView.scenario}
+                    onSelectSettlementStatus={setSettlementDemoStatus}
+                    onOpenSettlementDemo={() => openSettlementDemo('정산 요청 접수')}
+                  />
+                </div>
+              </>
+            ) : null}
+
+            {surface === 'contract' ? (
+              <>
+                <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_460px]">
+                  <div className="glass-card subtle-grid overflow-hidden p-5 sm:p-7">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">내 계약</p>
+                    <h1 className="mt-4 text-3xl font-semibold leading-tight text-white sm:text-5xl">
+                      주소 검색부터 계약 등록,
+                      <br className="hidden sm:block" />
+                      위험 확인과 정산 상태까지 관리합니다
+                    </h1>
+                    <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300 sm:text-base">
+                      이 화면은 샘플 설명이 아니라 실제 계약 관리 흐름입니다. 주소를 고른 뒤 계약을 등록하고,
+                      임차인 예치와 실시간 상태 확인까지 바로 이어집니다.
+                    </p>
+
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={() => openWorkspaceTab('landlord')}
+                        className="rounded-full bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                      >
+                        새 전세계약 등록
+                      </button>
+                      <button
+                        onClick={openExperience}
+                        className="rounded-full border border-white/10 px-5 py-3 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+                      >
+                        데모 먼저 보기
+                      </button>
+                      <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-400">
+                        연결 상태 {WALLET_STATE_LABEL[walletState]}
+                      </span>
+                    </div>
+
+                    <div className="mt-6 grid gap-3 md:grid-cols-3">
+                      {heroMetrics.map((item) => (
+                        <div key={item.label} className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
+                          <p className="mt-3 text-xl font-semibold text-white">{item.value}</p>
+                          <p className="mt-2 text-sm text-slate-400">{item.helper}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <MyContractSummary
+                    {...summaryView}
+                    detailMode={detailMode}
+                    activities={activities}
+                    availableTabs={['contract', 'settlement']}
+                  />
+                </section>
+
+                <div className="mt-6">
+                  <AddressSearchPanel
+                    selectedAddress={selectedAddress}
+                    onSelect={(record) => {
+                      setSelectedAddress(record);
+                    }}
+                  />
+                </div>
+
+                <main
+                  ref={workspaceRef}
+                  className={`mt-6 scroll-mt-24 ${highlightedSection === 'workspace' ? 'section-spotlight rounded-[32px]' : ''}`}
+                >
+                  <section className="glass-card overflow-hidden">
+                    <div className="border-b border-white/10 px-5 py-5 sm:px-6">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{TAB_META[tab].eyebrow}</p>
+                          <h2 className="mt-2 text-2xl font-semibold text-white">{TAB_META[tab].title}</h2>
+                          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                            {TAB_META[tab].description}
+                          </p>
+                        </div>
+                        <div className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-slate-300">
+                          연결 상태: {WALLET_STATE_LABEL[walletState]}
+                        </div>
+                      </div>
+
+                      {walletState === 'connected-active-contract' ? (
+                        <div className="mt-5 grid gap-3 md:grid-cols-3">
+                          {(Object.entries(TAB_META) as [Tab, (typeof TAB_META)[Tab]][]).map(([key, meta]) => (
+                            <button
+                              key={key}
+                              onClick={() => setTab(key)}
+                              className={`rounded-[22px] border p-4 text-left transition ${
+                                tab === key
+                                  ? 'border-cyan-300/30 bg-cyan-300/10'
+                                  : 'border-white/10 bg-slate-950/35 hover:border-white/20 hover:bg-white/[0.04]'
+                              }`}
+                            >
+                              <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{meta.eyebrow}</p>
+                              <p className="mt-3 text-base font-semibold text-white">{meta.label}</p>
+                              <p className="mt-2 text-sm leading-6 text-slate-400">{meta.description}</p>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="px-5 py-6 sm:px-6">
+                      {renderWorkspace({
+                        walletState,
+                        registrationIntent,
+                        isSwitchingChain,
+                        onSelectDemo: openExperience,
+                        onSwitchNetwork: () => switchChain({ chainId: CHAIN_ID }),
+                        onMoveToRegister: () => openWorkspaceTab('landlord'),
+                        children: (
+                          <>
+                            {tab === 'landlord' ? (
+                              <LandlordPanel
+                                activeLease={activeLease}
+                                suggestedPropertyLabel={
+                                  selectedAddress
+                                    ? `${selectedAddress.roadAddress} | ${selectedAddress.building}`
+                                    : undefined
+                                }
+                                selectedAddress={selectedAddress}
+                                onLeaseCreated={(lease) => mergeLease(lease, 'tenant')}
+                                onActivity={pushActivity}
+                              />
+                            ) : null}
+
+                            {tab === 'tenant' ? (
+                              <TenantPanel
+                                activeLease={activeLease}
+                                onLeaseSelected={(leaseId) => mergeLease({ leaseId })}
+                                onDepositComplete={(lease) => mergeLease(lease, 'viewer')}
+                                onActivity={pushActivity}
+                              />
+                            ) : null}
+
+                            {tab === 'viewer' ? (
+                              <LeaseViewer
+                                activeLease={activeLease}
+                                onLeaseSelected={(leaseId) => mergeLease({ leaseId })}
+                                onReturnComplete={(lease) => mergeLease(lease)}
+                                onActivity={pushActivity}
+                              />
+                            ) : null}
+                          </>
+                        ),
+                      })}
+                    </div>
+                  </section>
+                </main>
+              </>
+            ) : null}
+
+            {surface === 'more' ? (
+              <>
+                <section className="mt-6 glass-card overflow-hidden p-5 sm:p-6">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">더보기</p>
+                  <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
+                    기술 정보는 뒤로 빼고,
+                    <br className="hidden sm:block" />
+                    필요한 순간에만 펼쳐보게 정리했습니다
+                  </h1>
+                  <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+                    메인 흐름을 방해하지 않도록 위험 신호 설명, 신뢰 프로필, 활동 로그, 데이터 근거를 여기로 모았습니다.
+                    사용자는 쉬운 언어부터 보고, 발표나 검증 단계에서는 해시와 tx까지 더 깊게 확인할 수 있습니다.
+                  </p>
+                </section>
+
+                {moreView === 'signals' ? (
+                  <section className="mt-6">
+                    <div className="glass-card overflow-hidden p-5 sm:p-6">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="max-w-3xl">
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">위험 신호</p>
+                          <h2 className="mt-3 text-2xl font-semibold text-white">
+                            {summaryView.statusLabel} 상태로 보는 이유를 쉬운 언어로 정리했습니다
+                          </h2>
+                          <p className="mt-3 text-sm leading-6 text-slate-300">{signalOverview.summary}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMoreView('data')}
+                          className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+                        >
+                          데이터 근거 보기
+                        </button>
+                      </div>
+
+                      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {signalOverview.items.map((item) => (
+                          <SignalOverviewCard key={item.label} item={item} />
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                ) : null}
+
+                {moreView === 'trust' ? (
+                  <div className="mt-6">
+                    <TrustProfilePanel bundle={summaryView.trustBundle} detailMode={detailMode} />
+                  </div>
+                ) : null}
+
+                {moreView === 'activity' ? (
+                  <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+                    <SimpleActivityPanel items={activities} />
+                    <LiveMonitor
+                      activeLease={demoMode ? null : activeLease}
+                      activities={activities}
+                      connectedAddress={address}
+                      currentTabLabel={TAB_META[tab].label}
+                      isConnected={isConnected}
+                      autoRefreshEnabled={autoRefreshEnabled}
+                      onToggleAutoRefresh={() => setAutoRefreshEnabled((current) => !current)}
+                      onManualRefresh={refreshLiveData}
+                    />
+                  </section>
+                ) : null}
+
+                {moreView === 'data' ? (
                   <>
-                    {tab === 'landlord' ? (
-                      <LandlordPanel
-                        activeLease={activeLease}
-                        suggestedPropertyLabel={
-                          selectedAddress
-                            ? `${selectedAddress.roadAddress} | ${selectedAddress.building}`
-                            : undefined
-                        }
-                        selectedAddress={selectedAddress}
-                        onLeaseCreated={(lease) => mergeLease(lease, 'tenant')}
+                    <div className="mt-6">
+                      <OracleTrustPanel
+                        detailMode={detailMode}
+                        autoRefreshEnabled={autoRefreshEnabled}
+                      />
+                    </div>
+                    <div className="mt-6">
+                      <HugMultisigPanel
+                        activeLease={demoMode ? null : activeLease}
+                        autoRefreshEnabled={autoRefreshEnabled}
                         onActivity={pushActivity}
                       />
-                    ) : null}
-
-                    {tab === 'tenant' ? (
-                      <TenantPanel
-                        activeLease={activeLease}
-                        onLeaseSelected={(leaseId) => mergeLease({ leaseId })}
-                        onDepositComplete={(lease) => mergeLease(lease, 'viewer')}
-                        onActivity={pushActivity}
-                      />
-                    ) : null}
-
-                    {tab === 'viewer' ? (
-                      <LeaseViewer
-                        activeLease={activeLease}
-                        onLeaseSelected={(leaseId) => mergeLease({ leaseId })}
-                        onReturnComplete={(lease) => mergeLease(lease)}
-                        onActivity={pushActivity}
-                      />
-                    ) : null}
+                    </div>
                   </>
-                ),
-              })}
-            </div>
-          </section>
+                ) : null}
 
-          <LiveMonitor
-            activeLease={demoMode ? null : activeLease}
-            activities={activities}
-            connectedAddress={address}
-            currentTabLabel={TAB_META[tab].label}
-            isConnected={isConnected}
-            autoRefreshEnabled={autoRefreshEnabled}
-            onToggleAutoRefresh={() => setAutoRefreshEnabled((current) => !current)}
-            onManualRefresh={refreshLiveData}
-          />
-        </main>
+                {moreView === 'faq' ? (
+                  <section className="mt-6 grid gap-4 lg:grid-cols-2">
+                    <FaqCard
+                      question="보증금 보호함이 뭐예요?"
+                      answer="임대인의 일반 재산과 분리해 보증금을 관리하는 구조입니다. 만기와 위험 신호에 따라 반환 규칙이 자동으로 연결됩니다."
+                    />
+                    <FaqCard
+                      question="자동 반환은 어떻게 되나요?"
+                      answer="만기 조건이 충족되고 강한 위험 신호가 없으면, 누구나 규칙 실행 트랜잭션을 호출해 반환을 진행할 수 있습니다."
+                    />
+                    <FaqCard
+                      question="보류 금액은 왜 생기나요?"
+                      answer="퇴실 정산에서 파손·청소비·미납금처럼 분쟁이 있는 부분만 제한적으로 hold하고, 무분쟁 금액은 먼저 반환하기 위해서입니다."
+                    />
+                    <FaqCard
+                      question="위험 신호는 무엇을 보나요?"
+                      answer="선순위채권, 경매·압류 강한 플래그, 최근 권리변동, 전세가율, 만기·반환 재원 신호를 조합해 현재 상태를 설명합니다."
+                    />
+                  </section>
+                ) : null}
+              </>
+            ) : null}
+          </>
+        )}
+
+        <footer className="mt-12 border-t border-white/10 py-8 text-center text-xs text-white/30">
+          <p>© 2026 전세체인. 본 서비스는 Sepolia 테스트넷 기반 데모입니다.</p>
+          <p className="mt-1">실제 법적 효력이 없으며, 실거래에 사용하지 마십시오.</p>
+          <div className="mt-3 flex justify-center gap-6">
+            <span className="cursor-default transition-colors hover:text-white/50">이용약관</span>
+            <span className="cursor-default transition-colors hover:text-white/50">개인정보처리방침</span>
+            <span className="cursor-default transition-colors hover:text-white/50">고객문의</span>
+          </div>
+        </footer>
       </div>
     </div>
   );
@@ -782,7 +1122,7 @@ function renderWorkspace({
           <WorkspaceActionBanner
             tone="info"
             title="실제 계약 등록 단계로 들어왔어요"
-            description="아래 Step 1에서 임차인 주소, 보증금, 기간을 입력하면 실제 leaseId가 생성되고 다음 단계로 이어집니다."
+            description="아래 1단계에서 임차인 주소, 보증금, 기간을 입력하면 실제 leaseId가 생성되고 다음 단계로 이어집니다."
           />
           {children}
         </div>
@@ -885,6 +1225,262 @@ function WorkspaceSkeleton({ title, description }: { title: string; description:
   );
 }
 
+function TopNavButton({
+  active,
+  label,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-w-[170px] flex-1 flex-col rounded-[22px] border px-4 py-3 text-left transition ${
+        active
+          ? 'border-cyan-300/30 bg-cyan-300/10'
+          : 'border-white/10 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+      }`}
+    >
+      <span className={`text-sm font-semibold ${active ? 'text-cyan-100' : 'text-white'}`}>{label}</span>
+      <span className="mt-1 text-xs leading-5 text-slate-400">{description}</span>
+    </button>
+  );
+}
+
+function EntryChoiceCard({
+  eyebrow,
+  title,
+  description,
+  primaryLabel,
+  secondaryLabel,
+  onPrimary,
+  onSecondary,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  primaryLabel: string;
+  secondaryLabel: string;
+  onPrimary: () => void;
+  onSecondary: () => void;
+}) {
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-slate-950/50 p-5">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
+      <p className="mt-3 text-xl font-semibold text-white">{title}</p>
+      <p className="mt-3 text-sm leading-6 text-slate-300">{description}</p>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onPrimary}
+          className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+        >
+          {primaryLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onSecondary}
+          className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-100 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+        >
+          {secondaryLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+type SignalOverviewTone = 'safe' | 'monitor' | 'warning';
+
+type SignalOverviewItem = {
+  label: string;
+  tone: SignalOverviewTone;
+  summary: string;
+  helper: string;
+};
+
+function SignalOverviewCard({ item }: { item: SignalOverviewItem }) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-slate-950/50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-white">{item.label}</p>
+        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${signalToneClass(item.tone)}`}>
+          {item.tone === 'safe' ? '안정' : item.tone === 'monitor' ? '주의' : '경고'}
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-slate-200">{item.summary}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-400">{item.helper}</p>
+    </div>
+  );
+}
+
+function SimpleActivityPanel({ items }: { items: ActivityItem[] }) {
+  const recentItems = items.slice(0, 5);
+
+  return (
+    <div className="glass-card overflow-hidden p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">활동 로그</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">최근 활동과 시스템 반영 기록</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            메인 화면에서는 숨기고, 필요할 때만 최근 5개의 흐름을 빠르게 확인할 수 있게 뺐습니다.
+          </p>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-slate-300">
+          최근 5건
+        </span>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {recentItems.length === 0 ? (
+          <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-10 text-center text-sm text-slate-400">
+            아직 기록된 활동이 없습니다.
+          </div>
+        ) : (
+          recentItems.map((item) => (
+            <div key={item.id} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${toneDot(item.tone)}`} />
+                  <p className="text-sm font-semibold text-white">{item.title}</p>
+                </div>
+                <span className="text-xs text-slate-500">{new Date(item.timestamp).toLocaleTimeString('ko-KR')}</span>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{item.description}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FaqCard({ question, answer }: { question: string; answer: string }) {
+  return (
+    <div className="glass-card overflow-hidden p-5 sm:p-6">
+      <p className="text-sm font-semibold text-white">{question}</p>
+      <p className="mt-3 text-sm leading-7 text-slate-300">{answer}</p>
+    </div>
+  );
+}
+
+function buildSignalOverview(summaryView: SummaryView): { summary: string; items: SignalOverviewItem[] } {
+  const score = summaryView.riskScore;
+  const isWarning = summaryView.tone === 'warning';
+  const isMonitor = summaryView.tone === 'monitor';
+  const isSettlementFlow =
+    summaryView.scenario === 'settlement' ||
+    summaryView.scenario === 'termination' ||
+    summaryView.settlementStatus !== '정산 없음';
+  const nearingMaturity = summaryView.stage >= 4 || summaryView.remainingLabel === '만기 도래';
+
+  const depositRatioTone: SignalOverviewTone =
+    score <= 45 ? 'warning' : score <= 70 ? 'monitor' : 'safe';
+  const seniorDebtTone: SignalOverviewTone = isWarning ? 'warning' : isMonitor ? 'monitor' : 'safe';
+  const auctionTone: SignalOverviewTone =
+    summaryView.scenario === 'risk' || summaryView.scenario === 'termination'
+      ? 'warning'
+      : isMonitor
+        ? 'monitor'
+        : 'safe';
+  const rightsTone: SignalOverviewTone = isWarning ? 'warning' : isMonitor ? 'monitor' : 'safe';
+  const maturityTone: SignalOverviewTone =
+    isSettlementFlow || nearingMaturity ? 'warning' : isMonitor ? 'monitor' : 'safe';
+
+  const items: SignalOverviewItem[] = [
+    {
+      label: '선순위채권 / 근저당',
+      tone: seniorDebtTone,
+      summary:
+        seniorDebtTone === 'warning'
+          ? '선순위채권이나 근저당을 먼저 다시 확인해야 하는 상태입니다.'
+          : seniorDebtTone === 'monitor'
+            ? '담보 정보가 충분히 확인되지 않았거나 보수적으로 볼 필요가 있습니다.'
+            : '현재 화면 기준으로 강한 담보 스트레스 신호는 크지 않습니다.',
+      helper: '보증금보다 먼저 변제되는 채권이 크면 반환 안정성이 낮아집니다.',
+    },
+    {
+      label: '압류 / 경매 강한 플래그',
+      tone: auctionTone,
+      summary:
+        auctionTone === 'warning'
+          ? '경매·압류처럼 즉시 주의해야 할 강한 법적 신호를 우선 확인해야 합니다.'
+          : auctionTone === 'monitor'
+            ? '강한 플래그는 없지만 관련 권리 제한 여부를 함께 보는 편이 좋습니다.'
+            : '현재는 강한 법적 제한 신호가 전면에 보이지 않습니다.',
+      helper: '경매 관련 신호는 예측이 아니라 위험 경고 형태로만 보여줍니다.',
+    },
+    {
+      label: '최근 권리변동',
+      tone: rightsTone,
+      summary:
+        rightsTone === 'warning'
+          ? '최근 권리관계가 바뀐 흔적을 우선 확인해야 하는 상태입니다.'
+          : rightsTone === 'monitor'
+            ? '최근 권리변동 여부를 추가 확인하면 안전 판단이 더 선명해집니다.'
+            : '현재 흐름에서는 급격한 권리변동이 전면 신호로 올라오지 않았습니다.',
+      helper: '최근 소유권·담보 변동은 반환 실패 위험의 조기 신호가 될 수 있습니다.',
+    },
+    {
+      label: '보증금 대비 가격 비율',
+      tone: depositRatioTone,
+      summary:
+        depositRatioTone === 'warning'
+          ? '보증금 대비 가격 비율이 높게 읽혀 보수적인 판단이 필요합니다.'
+          : depositRatioTone === 'monitor'
+            ? '보증금과 매매가의 균형을 추가로 확인하는 편이 좋습니다.'
+            : '현재 읽기에서는 보증금 대비 가격 비율이 상대적으로 안정적입니다.',
+      helper: '주변 전월세·매매 실거래 집계를 바탕으로 설명용 판단을 제공합니다.',
+    },
+    {
+      label: '만기 / 반환 재원 신호',
+      tone: maturityTone,
+      summary:
+        maturityTone === 'warning'
+          ? '만기 또는 정산 단계에 가까워져 반환 재원과 다음 조치를 바로 확인해야 합니다.'
+          : maturityTone === 'monitor'
+            ? '만기까지 남은 기간과 자동 반환 준비 상태를 함께 지켜보는 구간입니다.'
+            : '만기까지 여유가 있고, 현재는 즉시 반환 스트레스가 크지 않습니다.',
+      helper: '만기 임박, 자동 반환, 제한적 정산 보류 여부가 여기서 함께 읽힙니다.',
+    },
+  ];
+
+  const warningItems = items.filter((item) => item.tone === 'warning');
+  const monitorItems = items.filter((item) => item.tone === 'monitor');
+
+  let summary = '현재 계약은 설명 가능한 범위 안에서 안정적으로 읽힙니다.';
+  if (warningItems.length > 0) {
+    summary = `${summaryView.statusLabel} 상태입니다. ${warningItems
+      .slice(0, 2)
+      .map((item) => item.label)
+      .join(', ')} 신호를 먼저 확인하는 것이 좋습니다.`;
+  } else if (monitorItems.length > 0) {
+    summary = `${summaryView.statusLabel} 상태입니다. ${monitorItems
+      .slice(0, 2)
+      .map((item) => item.label)
+      .join(', ')} 쪽을 추가 확인하면 판단이 더 선명해집니다.`;
+  }
+
+  return { summary, items };
+}
+
+function signalToneClass(tone: SignalOverviewTone) {
+  if (tone === 'safe') return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100';
+  if (tone === 'monitor') return 'border-amber-400/20 bg-amber-400/10 text-amber-100';
+  return 'border-rose-400/20 bg-rose-400/10 text-rose-100';
+}
+
+function toneDot(tone: ActivityItem['tone']) {
+  if (tone === 'success') return 'bg-emerald-400';
+  if (tone === 'warning') return 'bg-amber-400';
+  return 'bg-cyan-300';
+}
+
 function buildRegisterSummary(addressItem: AddressRecord): SummaryView {
   return {
     title: '새 전세 계약 등록 준비',
@@ -898,7 +1494,7 @@ function buildRegisterSummary(addressItem: AddressRecord): SummaryView {
     riskScore: addressItem.riskScore,
     tone: 'monitor',
     stage: 1,
-    note: '아래 Step 1에서 임대인·임차인·보증금·기간을 입력하면 실제 leaseId가 생성됩니다.',
+    note: '아래 1단계에서 임대인·임차인·보증금·기간을 입력하면 실제 leaseId가 생성됩니다.',
     liveLabel: '실제 등록 준비',
     depositKRW: '0',
     nextActionLabel: '임대인 패널 입력 시작',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import LifecycleTimeline from '@/components/LifecycleTimeline';
 import TrustProfilePanel from '@/components/TrustProfilePanel';
 import { formatClock } from '@/lib/format';
@@ -31,6 +31,15 @@ type MyContractSummaryProps = {
   trustBundle: TrustBundle;
   detailMode: boolean;
   activities: ActivityItem[];
+  availableTabs?: SummaryTab[];
+};
+
+const TAB_LABELS: Record<SummaryTab, { basic: string; detail: string }> = {
+  contract: { basic: '계약 정보', detail: '계약 정보 / Contract' },
+  risk: { basic: '위험 감지', detail: '위험 감지 / Oracle' },
+  trust: { basic: '신뢰 프로필', detail: '신뢰 프로필 / Attestation' },
+  settlement: { basic: '퇴실 정산', detail: '퇴실 정산 / Settlement' },
+  activity: { basic: '활동 로그', detail: '활동 로그 / Event Log' },
 };
 
 export default function MyContractSummary({
@@ -54,9 +63,16 @@ export default function MyContractSummary({
   trustBundle,
   detailMode,
   activities,
+  availableTabs = ['contract', 'risk', 'trust', 'settlement', 'activity'],
 }: MyContractSummaryProps) {
-  const [tab, setTab] = useState<SummaryTab>('contract');
+  const [tab, setTab] = useState<SummaryTab>(availableTabs[0] ?? 'contract');
   const recentActivities = useMemo(() => activities.slice(0, 5), [activities]);
+
+  useEffect(() => {
+    if (!availableTabs.includes(tab)) {
+      setTab(availableTabs[0] ?? 'contract');
+    }
+  }, [availableTabs, tab]);
 
   return (
     <div className="glass-card overflow-hidden p-5 sm:p-6">
@@ -100,13 +116,7 @@ export default function MyContractSummary({
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2 rounded-[22px] border border-white/10 bg-slate-950/45 p-2">
-        {([
-          ['contract', detailMode ? '계약 정보 / Contract' : '계약 정보'],
-          ['risk', detailMode ? '위험 감지 / Oracle' : '위험 감지'],
-          ['trust', detailMode ? '신뢰 프로필 / Attestation' : '신뢰 프로필'],
-          ['settlement', detailMode ? '퇴실 정산 / Settlement' : '퇴실 정산'],
-          ['activity', detailMode ? '활동 로그 / Event Log' : '활동 로그'],
-        ] as [SummaryTab, string][]).map(([key, label]) => (
+        {availableTabs.map((key) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -116,7 +126,7 @@ export default function MyContractSummary({
                 : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
             }`}
           >
-            {label}
+            {detailMode ? TAB_LABELS[key].detail : TAB_LABELS[key].basic}
           </button>
         ))}
       </div>
