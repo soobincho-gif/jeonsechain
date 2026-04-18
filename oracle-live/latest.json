@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-04-17T23:08:27.541Z",
+  "generatedAt": "2026-04-18T00:01:00.774Z",
   "health": {
     "status": "healthy",
     "watchMode": false,
     "latestRunSource": "DATA_GO_KR",
-    "lastSuccessAt": "2026-04-17T23:08:27.541Z",
+    "lastSuccessAt": "2026-04-18T00:01:00.774Z",
     "failureCount": 0
   },
   "latest": {
-    "fetchedAt": "2026-04-17T23:07:42.016Z",
+    "fetchedAt": "2026-04-18T00:00:27.154Z",
     "propertyId": "0xcc5d24dfc348b714e7348b8632b338bc55e350e7c9a97d3fe21810f8e858e2f9",
     "address": "서울특별시 마포구 월드컵북로 396",
     "beopjeongCode": "11440",
@@ -63,71 +63,71 @@
       "auctionSource": "API_OR_DEFAULT_FALSE",
       "mortgageSource": "API_OR_DEFAULT_FALSE"
     },
-    "bundleHash": "0x7b6bab90f09bdf08514f42f0d1f14846babfdbf281a35f085206fe967856b0a2",
-    "reportFileName": "2026-04-17T23-07-42-016Z_cc5d24df_7b6bab90.json",
+    "bundleHash": "0x8a99f2d1bb42ca2343ef50a8a2a92e65d180dd0a96d0ef1ebf46f4ce7a1f4284",
+    "reportFileName": "2026-04-18T00-00-27-154Z_cc5d24df_8a99f2d1.json",
     "reportPath": null,
     "onchain": {
       "oracleAddress": "0x3993b53929cC0f6804fe8D68e0Eac73becE4a039",
-      "updatePropertyDataTx": "0x6bf4faf5f18ffb669ef2250abea06685200751fd676f7597ce3827505db832fe",
-      "updateRiskScoreTx": "0x65340db425450c626bcc9c5dbf4195439f88b6d30bd6dc92503afbb1531c1f6b",
-      "updateRiskSignalsTx": "0x7cc3927fa2a8011a9d8acaaff197611fdb8d64e8dfa3aecce0bd46a2dacd8469",
-      "updatedAt": "2026-04-17T23:08:27.540Z"
+      "updatePropertyDataTx": "0xa956fda89f39b3b1b86366b9cac92ff4f197f1b162fae631dcb231184ecf57f0",
+      "updateRiskScoreTx": "0x089a19cec20a234539a2831f3c2f45b90811e2c8bd1098f21160c69d3f0ba24b",
+      "updateRiskSignalsTx": "0x3ba786c8aabcfa32ac4b3c9de7da28b41a450bb7bbae40a7e771b78fb13e9db2",
+      "updatedAt": "2026-04-18T00:01:00.774Z"
     },
     "freshness": {
-      "marketDataFetchedAt": "2026-04-17T23:07:42.016Z",
-      "oracleUpdatedAt": "2026-04-17T23:08:27.540Z"
+      "marketDataFetchedAt": "2026-04-18T00:00:27.154Z",
+      "oracleUpdatedAt": "2026-04-18T00:01:00.774Z"
     },
     "timeline": [
       {
         "kind": "report",
         "title": "오라클 보고서 저장",
-        "description": "2026-04-17T23-07-42-016Z_cc5d24df_7b6bab90.json",
-        "timestamp": "2026-04-17T23:08:27.541Z",
+        "description": "2026-04-18T00-00-27-154Z_cc5d24df_8a99f2d1.json",
+        "timestamp": "2026-04-18T00:01:00.775Z",
         "tone": "info"
       },
       {
         "kind": "onchain-property",
         "title": "updatePropertyData 반영",
         "description": "공시가, 선순위채권, 위험 플래그를 온체인에 기록했습니다.",
-        "timestamp": "2026-04-17T23:08:27.540Z",
-        "txHash": "0x6bf4faf5f18ffb669ef2250abea06685200751fd676f7597ce3827505db832fe",
+        "timestamp": "2026-04-18T00:01:00.774Z",
+        "txHash": "0xa956fda89f39b3b1b86366b9cac92ff4f197f1b162fae631dcb231184ecf57f0",
         "tone": "success"
       },
       {
         "kind": "onchain-risk",
         "title": "updateRiskScore 반영",
         "description": "리스크 점수와 bundleHash를 온체인에 기록했습니다.",
-        "timestamp": "2026-04-17T23:08:27.540Z",
-        "txHash": "0x65340db425450c626bcc9c5dbf4195439f88b6d30bd6dc92503afbb1531c1f6b",
+        "timestamp": "2026-04-18T00:01:00.774Z",
+        "txHash": "0x089a19cec20a234539a2831f3c2f45b90811e2c8bd1098f21160c69d3f0ba24b",
         "tone": "success"
       },
       {
         "kind": "risk-signals",
         "title": "구조화된 위험 신호 반영",
         "description": "선순위채권=없음, 권리변동=없음, 전세가율=33.4%를 기록했습니다.",
-        "timestamp": "2026-04-17T23:08:27.540Z",
-        "txHash": "0x7cc3927fa2a8011a9d8acaaff197611fdb8d64e8dfa3aecce0bd46a2dacd8469",
+        "timestamp": "2026-04-18T00:01:00.774Z",
+        "txHash": "0x3ba786c8aabcfa32ac4b3c9de7da28b41a450bb7bbae40a7e771b78fb13e9db2",
         "tone": "success"
       },
       {
         "kind": "market-data",
         "title": "최근 실거래 집계 완료",
         "description": "전월세 299건, 매매 225건을 반영했습니다.",
-        "timestamp": "2026-04-17T23:07:42.016Z",
+        "timestamp": "2026-04-18T00:00:27.154Z",
         "tone": "success"
       },
       {
         "kind": "benchmark",
         "title": "금리 benchmark 반영",
         "description": "기준금리 2.5%, 국고채 3Y 3.371%를 참고했습니다.",
-        "timestamp": "2026-04-17T23:07:42.016Z",
+        "timestamp": "2026-04-18T00:00:27.154Z",
         "tone": "success"
       }
     ]
   },
   "history": [
     {
-      "fetchedAt": "2026-04-17T23:07:42.016Z",
+      "fetchedAt": "2026-04-18T00:00:27.154Z",
       "riskScore": 0,
       "label": "안전",
       "eventTags": [
@@ -135,9 +135,9 @@
       ],
       "baseRatePct": 2.5,
       "treasury3yPct": 3.371,
-      "bundleHash": "0x7b6bab90f09bdf08514f42f0d1f14846babfdbf281a35f085206fe967856b0a2",
+      "bundleHash": "0x8a99f2d1bb42ca2343ef50a8a2a92e65d180dd0a96d0ef1ebf46f4ce7a1f4284",
       "source": "DATA_GO_KR"
     }
   ],
-  "publishedAt": "2026-04-17T23:08:27.541Z"
+  "publishedAt": "2026-04-18T00:01:00.775Z"
 }
